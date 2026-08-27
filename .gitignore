@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (large files)
+data/videos/*.mp4
+data/videos/*.avi
+data/videos/*.mov
+data/evidence/*.jpg
+data/evidence/*.png
+!data/videos/.gitkeep
+!data/evidence/.gitkeep
+!data/gps/.gitkeep
+!data/demo/.gitkeep
+
+# Models (large files)
+models/*.pt
+models/*.onnx
+models/*.weights
+!models/.gitkeep
+!models/README.md
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite3
+
+# Docker
+docker-compose.override.yml

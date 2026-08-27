@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: urbansense-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-urbansense}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-urbansense}
+      POSTGRES_DB: ${POSTGRES_DB:-urbansense}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Runs on first init only: explicitly creates the PostGIS extension.
+      - ./data/postgis_init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-urbansense}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - backend-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: urbansense-backend
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-urbansense}:${POSTGRES_PASSWORD:-urbansense}@postgres:5432/${POSTGRES_DB:-urbansense}
+      - DATABASE_URL_SYNC=postgresql://${POSTGRES_USER:-urbansense}:${POSTGRES_PASSWORD:-urbansense}@postgres:5432/${POSTGRES_DB:-urbansense}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - backend-net
+      - demo-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: urbansense-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    env_file:
+      - .env
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - demo-network
+
+volumes:
+  postgres_data:
+
+networks:
+  backend-net:
+  demo-network:

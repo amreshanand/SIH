@@ -1,0 +1,14 @@
+[
+  {"lat": 18.5204, "lon": 73.8567, "name": "Pune Railway Station"},
+  {"lat": 18.5220, "lon": 73.8575, "name": "Station Road"},
+  {"lat": 18.5245, "lon": 73.8590, "name": "Jangali Maharaj Road"},
+  {"lat": 18.5270, "lon": 73.8610, "name": "Shivaji Nagar"},
+  {"lat": 18.5300, "lon": 73.8630, "name": "Deccan Gymkhana"},
+  {"lat": 18.5330, "lon": 73.8650, "name": "FC Road"},
+  {"lat": 18.5360, "lon": 73.8670, "name": "Sinhagad Road"},
+  {"lat": 18.5390, "lon": 73.8690, "name": "Nal Stop"},
+  {"lat": 18.5410, "lon": 73.8710, "name": "Karve Nagar"},
+  {"lat": 18.5430, "lon": 73.8730, "name": "Kothrud Bus Stop"},
+  {"lat": 18.5450, "lon": 73.8750, "name": "Warje"},
+  {"lat": 18.5470, "lon": 73.8770, "name": "Malwadi"}
+]

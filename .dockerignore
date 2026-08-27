@@ -1,0 +1,14 @@
+# Both Dockerfiles share this root as build context. A single .dockerignore
+# must NOT exclude directories any Dockerfile COPYs (frontend/, data/, edge/).
+.git
+.env
+**/__pycache__
+**/*.pyc
+**/node_modules
+.next
+next-env.d.ts
+models/
+docs/
+.benchmarks
+.pytest_cache
+*.log
