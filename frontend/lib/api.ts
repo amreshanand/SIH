@@ -132,6 +132,11 @@ export const api = {
 
   getBuses: () => fetchAPI<import("../types").Bus[]>("/api/buses"),
 
+  getBusLocations: () => fetchAPI<import("../types").BusLocation[]>("/api/buses/locations"),
+
+  getBusLocation: (busId: string) => fetchAPI<import("../types").BusLocation>(`/api/buses/${busId}/location`),
+
+
   getNotifications: () => fetchAPI<{ notifications: import("../types").Notification[]; total: number; unread: number }>("/api/notifications"),
 
   getAuthorities: () => fetchAPI<{ authorities: Array<{ id: string; username: string; department: string | null }> }>("/api/authorities"),
