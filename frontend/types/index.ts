@@ -7,6 +7,20 @@ export interface Bus {
   updated_at: string;
 }
 
+export interface BusLocation {
+  bus_id: string;
+  bus_number: string;
+  status: string;
+  route_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  speed: number | null;
+  heading: number | null;
+  last_updated: string | null;
+  source: string | null;
+}
+
+
 export interface Event {
   id: string;
   event_id: string;
