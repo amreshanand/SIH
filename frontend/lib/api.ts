@@ -1,5 +1,13 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TOKEN_KEY = "urbansense_token";
+const USER_KEY = "urbansense_user";
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: string;
+  department: string | null;
+}
 
 export class APIError extends Error {
   status: number;
@@ -70,18 +78,31 @@ export const auth = {
     if (typeof window === "undefined") return null;
     return window.localStorage.getItem(TOKEN_KEY);
   },
+  get user(): AuthUser | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(USER_KEY);
+      return raw ? (JSON.parse(raw) as AuthUser) : null;
+    } catch {
+      return null;
+    }
+  },
   setToken(token: string) {
     if (typeof window !== "undefined") window.localStorage.setItem(TOKEN_KEY, token);
   },
   clear() {
-    if (typeof window !== "undefined") window.localStorage.removeItem(TOKEN_KEY);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(TOKEN_KEY);
+      window.localStorage.removeItem(USER_KEY);
+    }
   },
   async login(username: string, password: string) {
-    const res = await fetchAPI<{ access_token: string; token_type: string; user: Record<string, unknown> }>(
+    const res = await fetchAPI<{ access_token: string; token_type: string; user: AuthUser }>(
       "/api/auth/login",
       { method: "POST", auth: false, body: JSON.stringify({ username, password }) }
     );
     this.setToken(res.access_token);
+    if (typeof window !== "undefined") window.localStorage.setItem(USER_KEY, JSON.stringify(res.user));
     return res;
   },
 };

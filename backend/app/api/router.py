@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from backend.app.api import (
+    admin,
     analytics,
     authorities,
     auth,
@@ -36,5 +37,6 @@ api_router.include_router(auth.router)
 api_router.include_router(streaming.router)
 api_router.include_router(demo.router)
 api_router.include_router(sensing.router)
+api_router.include_router(admin.router)
 
 api_router.include_router(ws_handlers.router)

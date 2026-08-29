@@ -3,10 +3,41 @@ from __future__ import annotations
 import cv2
 import numpy as np
 import time
-import streamlink
 
 from edge.camera.base import VideoSource
 from edge.utils.logger import log
+
+
+def _resolve_youtube_url(youtube_url: str) -> str:
+    """Resolve a YouTube video/live URL to a direct (m3u8) stream URL.
+
+    Prefers yt-dlp (actively maintained, handles current YouTube player
+    changes); falls back to streamlink when yt-dlp is unavailable.
+    """
+    try:
+        import yt_dlp
+
+        opts = {
+            "format": "best[height<=720]/best",
+            "noplaylist": True,
+            "quiet": True,
+            "no_warnings": True,
+        }
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(youtube_url, download=False)
+        stream_url = info.get("url")
+        if not stream_url and info.get("requested_formats"):
+            stream_url = info["requested_formats"][0].get("url")
+        if stream_url:
+            return stream_url
+        raise RuntimeError("yt-dlp did not produce a stream URL")
+    except Exception:
+        import streamlink
+
+        streams = streamlink.streams(youtube_url)
+        if not streams:
+            raise RuntimeError("No streams found for YouTube URL")
+        return streams["best"].url
 
 
 class YouTubeSource(VideoSource):
@@ -25,10 +56,7 @@ class YouTubeSource(VideoSource):
     def open(self) -> None:
         log.info("[EDGE] Resolving YouTube URL: %s", self.youtube_url)
         try:
-            streams = streamlink.streams(self.youtube_url)
-            if not streams:
-                raise RuntimeError("No streams found for YouTube URL")
-            stream_url = streams["best"].url
+            stream_url = _resolve_youtube_url(self.youtube_url)
             log.info("[EDGE] Resolved YouTube stream URL successfully")
             self.cap = cv2.VideoCapture(stream_url)
             if not self.cap.isOpened():

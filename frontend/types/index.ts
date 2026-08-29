@@ -138,11 +138,73 @@ export interface CapabilityBadge {
   [key: string]: unknown;
 }
 
+export interface AdminUser {
+  id: string;
+  username: string;
+  role: string;
+  department: string | null;
+  created_at: string | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  user_id: string | null;
+  username: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export interface Verification {
+  id: string;
+  issue_id: string;
+  bus_id: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  detection_result: string;
+  confidence: number;
+  evidence_url: string | null;
+  result: string;
+}
+
+export interface VerificationPostResult {
+  issue_id: string;
+  bus_id: string;
+  detection_result: string;
+  confidence: number;
+  latitude: number;
+  longitude: number;
+  status: string;
+  reason?: string | null;
+  verification_id?: string | null;
+  result?: string | null;
+  unique_clear_count?: number;
+  unique_detected_count?: number;
+  issue_status?: string | null;
+  timestamp?: string | null;
+}
+
 export interface SystemHealth {
   status: "ok" | "degraded";
   timestamp: number;
   database: { status: string; latency_ms: number };
-  postgis: { status: string };
+  postgis?: { status: string };
+  ai_mode: string;
+  gps_mode: string;
+  demo_mode: boolean;
+  debug: boolean;
+  bus_id: string | null;
+  camera: string | null;
+  spatial_engine: string;
+  pipeline: string;
+  capabilities: Record<string, CapabilityBadge>;
+  production: boolean;
+}
   ai_mode: string;
   gps_mode: string;
   demo_mode: boolean;
