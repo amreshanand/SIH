@@ -22,7 +22,9 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
     )).scalar() or 0
 
     open_issues = (await db.execute(
-        select(func.count(Issue.id)).where(Issue.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS"]))
+        select(func.count(Issue.id)).where(Issue.status.in_(
+            ["OPEN", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"]
+        ))
     )).scalar() or 0
 
     critical_incidents = (await db.execute(

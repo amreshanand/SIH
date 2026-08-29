@@ -84,8 +84,15 @@ async def list_incidents(
 
 @router.get("/{incident_id}", response_model=IncidentResponse)
 async def get_incident(incident_id: str, db: AsyncSession = Depends(get_db)) -> Incident:
-    result = await db.execute(select(Incident).where(Incident.incident_id == incident_id))
-    incident = result.scalar_one_or_none()
+    import uuid as _uuid
+    q = select(Incident).where(Incident.incident_id == incident_id)
+    try:
+        iid = _uuid.UUID(str(incident_id))
+        q = select(Incident).where((Incident.incident_id == incident_id) | (Incident.id == iid))
+    except ValueError:
+        pass
+    result = await db.execute(q.limit(2))
+    incident = result.scalars().first()
     if not incident:
         raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
     return incident

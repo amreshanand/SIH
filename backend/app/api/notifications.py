@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.deps import require_auth
 from backend.app.database.session import get_db
-from backend.app.models import Notification
+from backend.app.models import Notification, User
 from backend.app.schemas.notification import NotificationListResponse, NotificationResponse
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -16,19 +16,16 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 @router.get("", response_model=NotificationListResponse)
 async def list_notifications(
-    user_id: str | None = None,
+    user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    q = select(Notification)
-    if user_id:
-        q = q.where(Notification.user_id == user_id)
+    q = select(Notification).where(Notification.user_id == user.id)
+    total_q = select(func.count(Notification.id)).where(Notification.user_id == user.id)
+    unread_q = select(func.count(Notification.id)).where(
+        Notification.user_id == user.id, Notification.read == False
+    )
 
-    total_result = await db.execute(select(func.count(Notification.id)))
-    total = total_result.scalar() or 0
-
-    unread_q = select(func.count(Notification.id)).where(Notification.read == False)
-    if user_id:
-        unread_q = unread_q.where(Notification.user_id == user_id)
+    total = (await db.execute(total_q)).scalar() or 0
     unread = (await db.execute(unread_q)).scalar() or 0
 
     q = q.order_by(Notification.created_at.desc()).limit(50)
@@ -42,7 +39,7 @@ async def list_notifications(
 async def mark_read(
     notification_id: str,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_auth),
+    _user: User = Depends(require_auth),
 ) -> dict:
     try:
         nid = uuid.UUID(notification_id)

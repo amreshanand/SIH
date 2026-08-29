@@ -3,11 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.database.session import get_db
-from backend.app.models import Event, Issue, Incident, TrafficRecord, VerificationRecord
+from backend.app.models import Event, Issue
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
@@ -27,20 +27,28 @@ async def road_health(db: AsyncSession = Depends(get_db)) -> dict:
         select(
             Issue.department,
             func.count(Issue.id).label("issue_count"),
-            func.avg(Issue.severity).label("avg_severity"),
+            # Weighted severity in SQL: avg() is invalid on a varchar column.
+            func.avg(
+                case(
+                    (Issue.severity == "LOW", 1),
+                    (Issue.severity == "MEDIUM", 2),
+                    (Issue.severity == "HIGH", 3),
+                    (Issue.severity == "CRITICAL", 4),
+                    else_=2,
+                )
+            ).label("avg_severity"),
         )
         .where(Issue.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "REOPENED"]))
         .group_by(Issue.department)
     )
     rows = result.all()
 
-    severity_map = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
-
     roads = []
     for row in rows:
         dept = row.department or "UNKNOWN"
         count = row.issue_count
-        base_health = max(0, 100 - (count * 12))
+        avg_severity = float(row.avg_severity or 0)
+        base_health = max(0, 100 - (count * 12) - (avg_severity - 2) * 5)
         roads.append({
             "department": dept,
             "issue_count": count,
@@ -69,12 +77,25 @@ async def route_performance(db: AsyncSession = Depends(get_db)) -> dict:
 
 
 @router.get("/od-matrix")
-async def od_matrix(db: AsyncSession = Depends(get_db)) -> dict:
-    return {
-        "matrix": [],
-        "note": "ESTIMATED TRAFFIC FLOW — prototype data based on bus routes and traffic observations",
-        "status": "SIMULATED",
-    }
+async def od_matrix(
+    days: int = Query(7, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from backend.app.services.insights import od_matrix as _od_matrix
+    return await _od_matrix(db, days)
+
+
+@router.get("/route-delays")
+async def route_delays(db: AsyncSession = Depends(get_db)) -> dict:
+    from backend.app.services.insights import route_delays as _route_delays
+    delays = await _route_delays(db)
+    return {"routes": delays}
+
+
+@router.get("/infrastructure")
+async def infrastructure(db: AsyncSession = Depends(get_db)) -> dict:
+    from backend.app.services.insights import infrastructure_health
+    return await infrastructure_health(db)
 
 
 @router.get("/defect-trends")

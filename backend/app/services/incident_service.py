@@ -1,63 +1,51 @@
+"""Incident promotion: turn high-risk events (rash driving, hit-and-run,
+collision) into command-center Incident alerts carrying plate + GPS + timestamp.
+
+The edge device already attaches plate_text / plate_confidence and accurate GPS
+when it reports these events; this service dedupes and materialises them in the
+incidents table so authority dashboards and the alert flow see them immediately.
+"""
 from __future__ import annotations
 
-import logging
-from dataclasses import dataclass, field
+import uuid
+from datetime import datetime, timedelta, timezone
 
-logger = logging.getLogger(__name__)
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@dataclass
-class Detection:
-    class_name: str
-    confidence: float
-    bbox: tuple[int, int, int, int] = (0, 0, 0, 0)
+from backend.app.models import Event, Incident
 
 
-@dataclass
-class GPSData:
-    latitude: float = 0.0
-    longitude: float = 0.0
-    source: str = "unknown"
-
-
-@dataclass
-class IncidentResult:
-    incident_type: str
-    severity: str
-    confidence: float
-    plate_text: str | None = None
-    plate_confidence: float | None = None
-
-
-class IncidentDetector:
-    def analyze(
-        self,
-        detections: list[Detection],
-        gps: GPSData,
-        frame_metadata: dict | None = None,
-    ) -> IncidentResult | None:
-        pedestrians = [d for d in detections if d.class_name == "person"]
-        vehicles = [d for d in detections if d.class_name in ("car", "motorcycle", "truck", "bus")]
-
-        if pedestrians and vehicles:
-            for ped in pedestrians:
-                for veh in vehicles:
-                    px = (ped.bbox[0] + ped.bbox[2]) / 2
-                    vx = (veh.bbox[0] + veh.bbox[2]) / 2
-                    dist = abs(px - vx)
-                    if dist < 100:
-                        logger.warning("[INCIDENT] PEDESTRIAN_RISK detected (proximity=%.0f)", dist)
-                        return IncidentResult(
-                            incident_type="PEDESTRIAN_RISK",
-                            severity="HIGH",
-                            confidence=0.78,
-                        )
+async def create_incident_from_event(event: Event, db: AsyncSession) -> Incident | None:
+    """Create an Incident for a high-risk event unless a recent matching one
+    already exists (same bus, same type, within the last 10 minutes)."""
+    recent = await db.execute(
+        select(Incident).where(
+            Incident.bus_id == event.bus_id,
+            Incident.incident_type == event.event_type,
+            Incident.status.in_(["DETECTED", "REPORTED"]),
+            Incident.created_at >= datetime.now(timezone.utc) - timedelta(minutes=10),
+        ).limit(1)
+    )
+    if recent.scalar_one_or_none() is not None:
         return None
 
-
-class MockOCRDetector:
-    def detect_plate(self, detections: list[Detection]) -> tuple[str, float] | None:
-        for d in detections:
-            if d.class_name in ("car", "truck", "motorcycle"):
-                return ("MH12AB1234", 0.94)
-        return None
+    metadata = event.metadata_json or {}
+    incident = Incident(
+        incident_id=f"INC-{event.event_id}",
+        incident_type=event.event_type,
+        bus_id=event.bus_id,
+        camera_id=event.camera_id,
+        severity=event.severity,
+        confidence=event.confidence,
+        latitude=event.latitude,
+        longitude=event.longitude,
+        plate_text=metadata.get("plate_text"),
+        plate_confidence=metadata.get("plate_confidence"),
+        evidence_url=event.evidence_url,
+        status="DETECTED",
+    )
+    db.add(incident)
+    await db.commit()
+    await db.refresh(incident)
+    return incident

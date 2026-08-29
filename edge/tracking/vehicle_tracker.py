@@ -84,8 +84,10 @@ class MockTracker:
 
         matched: dict[int, Detection] = {}
         used_dets: set[int] = set()
+        existing_tids = set(self._tracks.keys())
 
-        for tid, track in list(self._tracks.items()):
+        for tid in list(self._tracks.keys()):
+            track = self._tracks[tid]
             best_iou = 0.0
             best_det_idx = -1
             for i, det in enumerate(detections):
@@ -108,6 +110,13 @@ class MockTracker:
             det.track_id = tid
             det.metadata["track_id"] = tid
 
+        # Move pre-existing tracks that were NOT matched this frame to lost.
+        for tid in existing_tids:
+            if tid not in matched:
+                self._lost[tid] = (self._tracks[tid], 0)
+                del self._tracks[tid]
+
+        # Create new tracks for detections that matched no existing track.
         for i, det in enumerate(detections):
             if i not in used_dets:
                 tid = self._next_id
@@ -125,11 +134,6 @@ class MockTracker:
                 )
                 det.track_id = tid
                 det.metadata["track_id"] = tid
-
-        unmatched_tracks = [tid for tid in self._tracks if tid not in matched]
-        for tid in unmatched_tracks:
-            self._lost[tid] = (self._tracks[tid], 0)
-            del self._tracks[tid]
 
         to_remove = []
         for tid, (_, lost_count) in list(self._lost.items()):

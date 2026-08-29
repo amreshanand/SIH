@@ -24,6 +24,20 @@ class BusResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BusLocationResponse(BaseModel):
+    """Last-known location for a bus (from its most recent event/GPS fix)."""
+    bus_id: str
+    bus_number: str
+    status: str
+    route_id: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    speed: Optional[float] = None
+    heading: Optional[float] = None
+    last_updated: Optional[str] = None
+    source: Optional[str] = None
+
+
 class CameraResponse(BaseModel):
     id: uuid.UUID
     bus_id: uuid.UUID

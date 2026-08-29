@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card, CardHeader, Badge } from "@/components/ui/Card";
-import { Event, Issue } from "@/types";
+import { Event, Issue, OdMatrix, RouteDelay, InfrastructureReport } from "@/types";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell,
@@ -32,12 +32,18 @@ export default function AnalyticsPage() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [roadHealth, setRoadHealth] = useState<RoadHealthEntry[]>([]);
   const [routePerf, setRoutePerf] = useState<RoutePerf | null>(null);
+  const [odMatrix, setOdMatrix] = useState<OdMatrix | null>(null);
+  const [routeDelays, setRouteDelays] = useState<RouteDelay[]>([]);
+  const [infra, setInfra] = useState<InfrastructureReport | null>(null);
 
   useEffect(() => {
     api.getEvents({ limit: "200" }).then((r) => setEvents(r.events)).catch(console.error);
     api.getIssues({ limit: "200" }).then((r) => setIssues(r.issues)).catch(console.error);
     api.getRoadHealth().then((r) => setRoadHealth(r.roads || [])).catch(console.error);
     api.getRoutePerformance().then(setRoutePerf).catch(console.error);
+    api.getOdMatrix(7).then(setOdMatrix).catch(console.error);
+    api.getRouteDelays().then((r) => setRouteDelays(r.routes || [])).catch(console.error);
+    api.getInfrastructure().then(setInfra).catch(console.error);
   }, []);
 
   const eventTypeDist = events.reduce((acc: Record<string, number>, e) => {
@@ -159,12 +165,115 @@ export default function AnalyticsPage() {
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Origin-Destination Matrix</span><Badge text="SIMULATED" variant="default" /></CardHeader>
+          <CardHeader><span className="text-sm font-medium text-gray-300">Origin-Destination Matrix</span><Badge text={odMatrix?.label || "SIMULATED"} variant="default" /></CardHeader>
           <div className="p-4">
-            <div className="text-center text-gray-600 text-xs py-8">
-              SIMULATED PASSENGER FLOW<br/>
-              <span className="text-[10px] text-gray-700">Based on route stop data</span>
-            </div>
+            {(!odMatrix || odMatrix.matrix.length === 0) ? (
+              <div className="text-center text-gray-600 text-xs py-8">
+                NO OD FLOW DATA<br/>
+                <span className="text-[10px] text-gray-700">Run the demo / seed to populate route traffic</span>
+              </div>
+            ) : (
+              <table className="w-full text-left text-[11px]">
+                <thead>
+                  <tr className="text-gray-500 border-b border-gray-800">
+                    <th className="py-1 pr-2 font-medium">Corridor</th>
+                    <th className="py-1 pr-2 font-medium">Origin</th>
+                    <th className="py-1 pr-2 font-medium">Destination</th>
+                    <th className="py-1 pr-2 font-medium">Trips</th>
+                    <th className="py-1 pr-2 font-medium">Vehicles</th>
+                    <th className="py-1 pr-2 font-medium">Congestion</th>
+                    <th className="py-1 font-medium">Est. Travel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {odMatrix.matrix.map((m) => (
+                    <tr key={m.route_name} className="border-b border-gray-800/60 text-gray-300">
+                      <td className="py-1.5 pr-2 text-white">{m.route_name}</td>
+                      <td className="py-1.5 pr-2">{m.origin}</td>
+                      <td className="py-1.5 pr-2">{m.destination}</td>
+                      <td className="py-1.5 pr-2">{m.trips}</td>
+                      <td className="py-1.5 pr-2">{m.vehicles_observed}</td>
+                      <td className="py-1.5 pr-2">{m.avg_congestion_score}</td>
+                      <td className="py-1.5">{m.est_travel_min > 0 ? `${m.est_travel_min} min` : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="text-[9px] text-gray-700 mt-2">
+              Estimated from on-road vehicle counts per fleet corridor
+            </p>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Card>
+          <CardHeader><span className="text-sm font-medium text-gray-300">Route Delays</span></CardHeader>
+          <div className="p-4">
+            {routeDelays.length === 0 ? (
+              <p className="text-[10px] text-gray-600">No route delay estimates available</p>
+            ) : (
+              <table className="w-full text-left text-[11px]">
+                <thead>
+                  <tr className="text-gray-500 border-b border-gray-800">
+                    <th className="py-1 pr-2 font-medium">Route</th>
+                    <th className="py-1 pr-2 font-medium">Scheduled</th>
+                    <th className="py-1 pr-2 font-medium">Est.</th>
+                    <th className="py-1 pr-2 font-medium">Delay</th>
+                    <th className="py-1 pr-2 font-medium">Congestion</th>
+                    <th className="py-1 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {routeDelays.map((d) => (
+                    <tr key={d.route_name} className="border-b border-gray-800/60 text-gray-300">
+                      <td className="py-1.5 pr-2 text-white">{d.route_name}</td>
+                      <td className="py-1.5 pr-2">{d.scheduled_duration_min} min</td>
+                      <td className="py-1.5 pr-2">{d.estimated_duration_min} min</td>
+                      <td className="py-1.5 pr-2">{d.delay_min > 0 ? `+${d.delay_min}` : d.delay_min}</td>
+                      <td className="py-1.5 pr-2">{d.avg_congestion_score}</td>
+                      <td className="py-1.5">
+                        <Badge
+                          text={d.status}
+                          variant={d.status === "SEVERE" ? "critical" : d.status === "DELAYED" ? "medium" : "default"}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="text-[9px] text-gray-700 mt-2">Estimated from fleet traffic observations (avg speed vs schedule)</p>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader><span className="text-sm font-medium text-gray-300">Infrastructure Deficiency</span></CardHeader>
+          <div className="p-4 space-y-3">
+            {(!infra || infra.categories.length === 0) && (
+              <p className="text-[10px] text-gray-600">No infrastructure deficiencies identified</p>
+            )}
+            {infra?.categories.map((c) => (
+              <div key={c.category} className="flex items-start gap-3">
+                <span className="text-[11px] text-gray-400 w-36 shrink-0">{c.category} <span className="text-gray-600">({c.count})</span></span>
+                <div className="flex-1">
+                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max(0, 100 - c.deficiency_score)}%`,
+                        backgroundColor: (100 - c.deficiency_score) > 60 ? "#ef4444" : (100 - c.deficiency_score) > 40 ? "#eab308" : "#22c55e",
+                      }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-gray-600 mt-1">
+                    {c.recommendation}
+                    {c.affected_stops.length > 0 && <> — near {c.affected_stops.slice(0, 3).join(", ")}</>}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
       </div>

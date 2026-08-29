@@ -143,11 +143,25 @@ export const api = {
 
   getStreamStatus: () => fetchAPI<{ running: boolean; source: string; bus_id: string; camera: string; fps: number }>("/api/stream/status"),
 
+  getFleet: () => fetchAPI<import("../types").FleetStatus>("/api/stream/fleet"),
+
   getVerificationHistory: (issueId: string) => fetchAPI(`/api/verification/issue/${issueId}`),
 
   getTraffic: (params?: Record<string, string>) => {
     const q = params ? "?" + new URLSearchParams(params).toString() : "";
-    return fetchAPI<{ traffic: Array<{ id: string; road_segment: string; vehicle_count: number; average_speed: number; congestion_score: number; latitude: number; longitude: number; created_at: string }>; total: number }>(`/api/traffic${q}`);
+    return fetchAPI<{ traffic: Array<{
+      id: string;
+      bus_id: string;
+      road_segment: string;
+      vehicle_count: number;
+      vehicle_distribution: Record<string, number> | null;
+      average_speed: number;
+      congestion_score: number;
+      latitude: number;
+      longitude: number;
+      bus_speed: number | null;
+      created_at: string;
+    }>; total: number }>(`/api/traffic${q}`);
   },
 
   getTrafficHeatmap: () =>
@@ -173,6 +187,15 @@ export const api = {
 
   getRoutePerformance: () =>
     fetchAPI<{ total_detections: number; total_issues: number; resolved_issues: number; resolution_rate: number }>("/api/analytics/route-performance"),
+
+  getOdMatrix: (days = 7) =>
+    fetchAPI<import("../types").OdMatrix>(`/api/analytics/od-matrix?days=${days}`),
+
+  getRouteDelays: () =>
+    fetchAPI<{ routes: import("../types").RouteDelay[] }>("/api/analytics/route-delays"),
+
+  getInfrastructure: () =>
+    fetchAPI<import("../types").InfrastructureReport>("/api/analytics/infrastructure"),
 };
 
 export const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";

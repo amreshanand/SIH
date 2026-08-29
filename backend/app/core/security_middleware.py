@@ -58,10 +58,10 @@ class AuthRateLimitMiddleware(BaseHTTPMiddleware):
             action = "login"
         elif path.endswith("/auth/register"):
             action = "register"
-        if action:
-            host = request.client.host if request.client else "unknown"
-            self._check((host, action))
         try:
+            if action:
+                host = request.client.host if request.client else "unknown"
+                self._check((host, action))
             return await call_next(request)
         except TooManyRequests:
             return Response(status_code=429, content="Rate limit exceeded")

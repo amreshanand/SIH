@@ -14,11 +14,12 @@ from backend.app.api.deps import require_admin
 from backend.app.database.session import get_db
 from backend.app.models import (
     Bus, Camera, Event, Issue, User, GPSPoint, IssueEvent, VerificationRecord,
-    IssueAssignment,
+    IssueAssignment, Incident,
 )
 from backend.app.seed.demo_data import seed_demo_data
-from backend.app.services.issue_service import create_or_merge_issue
+from backend.app.services.issue_service import create_or_merge_issue, INCIDENT_EVENT_TYPES
 from backend.app.services.verification_service import process_verification
+from backend.app.services.incident_service import create_incident_from_event
 from backend.app.websocket.manager import ws_manager
 
 router = APIRouter(prefix="/demo", tags=["Demo"])
@@ -55,12 +56,18 @@ DEMO_LIFECYCLE = [
         "lat": 18.5204, "lon": 73.8567, "bus": "BUS-001",
     },
     {
-        "step": 7, "action": "STATUS",
-        "message": "Evidence image captured and queued",
+        "step": 7, "action": "EVENT",
+        "message": "BUS-002 detects RASH DRIVING — erratic 3x speed spike (plate read)",
+        "event_type": "RASH_DRIVING", "severity": "CRITICAL", "confidence": 0.92,
+        "lat": 18.5132, "lon": 73.8361, "bus": "BUS-002",
+        "metadata": {"plate_text": "MH-12-AB-3456", "plate_confidence": 0.88, "vehicle_class": "car"},
     },
     {
-        "step": 8, "action": "STATUS",
-        "message": "Event uploaded to backend",
+        "step": 8, "action": "EVENT",
+        "message": "BUS-004 flags HIT-AND-RUN collision at signal — plate captured",
+        "event_type": "HIT_AND_RUN", "severity": "CRITICAL", "confidence": 0.9,
+        "lat": 18.5455, "lon": 73.8447, "bus": "BUS-004",
+        "metadata": {"plate_text": "MH-14-CD-7890", "plate_confidence": 0.91, "vehicle_class": "car"},
     },
     {
         "step": 9, "action": "STATUS",
@@ -208,32 +215,52 @@ async def _execute_step(db: AsyncSession, step_def: dict, ctx: StepContext) -> d
             latitude=step_def["lat"],
             longitude=step_def["lon"],
             source="SIMULATED",
-            metadata_json={"demo": True, "step": step_num},
+            metadata_json={"demo": True, "step": step_num, **step_def.get("metadata", {})},
         )
         db.add(event)
         await db.commit()
         await db.refresh(event)
 
-        issue = await create_or_merge_issue(event, db)
-        if ctx.created_issue_id is None:
-            ctx.created_issue_id = issue.issue_id
-
         step_result["event_id"] = event.event_id
-        step_result["issue_id"] = issue.issue_id
-        step_result["issue_status"] = issue.status
         step_result["source"] = "SIMULATED"
 
-        await ws_manager.broadcast("events", {
-            "type": "new_event",
-            "step": step_num,
-            "event_id": event.event_id,
-            "event_type": event.event_type,
-            "severity": event.severity,
-            "confidence": event.confidence,
-            "latitude": event.latitude,
-            "longitude": event.longitude,
-            "source": "SIMULATED",
-        })
+        if event.event_type in INCIDENT_EVENT_TYPES:
+            # High-risk event → promote to a command-center Incident (plate +
+            # GPS + timestamp alert) instead of an infrastructure Issue.
+            incident = await create_incident_from_event(event, db)
+            if incident:
+                step_result["incident_id"] = incident.incident_id
+                step_result["incident_status"] = incident.status
+                await ws_manager.broadcast("events", {
+                    "type": "new_incident",
+                    "step": step_num,
+                    "incident_id": incident.incident_id,
+                    "incident_type": incident.incident_type,
+                    "severity": incident.severity,
+                    "plate_text": incident.plate_text,
+                    "latitude": incident.latitude,
+                    "longitude": incident.longitude,
+                    "bus_id": str(incident.bus_id),
+                })
+        else:
+            issue = await create_or_merge_issue(event, db)
+            if ctx.created_issue_id is None:
+                ctx.created_issue_id = issue.issue_id
+
+            step_result["issue_id"] = issue.issue_id
+            step_result["issue_status"] = issue.status
+
+            await ws_manager.broadcast("events", {
+                "type": "new_event",
+                "step": step_num,
+                "event_id": event.event_id,
+                "event_type": event.event_type,
+                "severity": event.severity,
+                "confidence": event.confidence,
+                "latitude": event.latitude,
+                "longitude": event.longitude,
+                "source": "SIMULATED",
+            })
 
     elif action == "ASSIGN" and ctx.created_issue_id and ctx.authority:
         issue_result = await db.execute(
@@ -345,13 +372,13 @@ async def _execute_step(db: AsyncSession, step_def: dict, ctx: StepContext) -> d
 
 
 @router.post("/seed")
-async def seed_demo(db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def seed_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)) -> dict:
     result = await seed_demo_data(db)
     return {"status": "seeded", **result}
 
 
 @router.post("/reset")
-async def reset_demo(db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def reset_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)) -> dict:
     await db.execute(text(
         "TRUNCATE verification_records, notifications, audit_logs, issue_events, "
         "issue_assignments, evidence, incidents, vehicle_tracks, traffic_records, "
@@ -363,7 +390,7 @@ async def reset_demo(db: AsyncSession = Depends(get_db), _admin: dict = Depends(
 
 
 @router.post("/sih")
-async def sih_mode(db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def sih_mode(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)) -> dict:
     """One-click SIH MODE: clean database, seed demo data, run the 21-step lifecycle."""
     await reset_demo(db=db, _admin=_admin)
     seed_result = await seed_demo_data(db)
@@ -403,7 +430,7 @@ async def demo_status(db: AsyncSession = Depends(get_db)) -> dict:
 
 @router.post("/step")
 async def run_single_step(payload: StepRequest, db: AsyncSession = Depends(get_db),
-                          _admin: dict = Depends(require_admin)) -> dict:
+                          _admin: User = Depends(require_admin)) -> dict:
     """Execute a single lifecycle step (1..21). Enables START/NEXT controls."""
     if payload.step < 1 or payload.step > len(DEMO_LIFECYCLE):
         return {"status": "invalid_step", "step": payload.step,
@@ -418,7 +445,7 @@ async def run_single_step(payload: StepRequest, db: AsyncSession = Depends(get_d
 
 
 @router.post("/run")
-async def run_demo(db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def run_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)) -> dict:
     """Fast-forward / full run: execute the entire 21-step lifecycle."""
     ctx = await _load_context(db)
     steps_completed = []

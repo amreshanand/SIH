@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.models import Event, Issue, TrafficRecord, VerificationRecord
+from backend.app.models import Event, Issue, TrafficRecord, VerificationRecord, Route, Incident, Bus
 
 
 SEVERITY_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
@@ -182,6 +182,225 @@ async def issue_hotspots(db: AsyncSession, radius_m: int = 200) -> list[dict]:
     ]
 
 
+DEFICIENCY_CATEGORIES = {
+    "POTHOLE": "ROAD_SURFACE",
+    "ROAD_CRACK": "ROAD_SURFACE",
+    "DAMAGED_ROAD": "ROAD_SURFACE",
+    "WATERLOGGING": "DRAINAGE",
+    "MISSING_SIGN": "SIGNALIZATION",
+    "DAMAGED_SIGN": "SIGNALIZATION",
+    "MISSING_CROSSING": "PEDESTRIAN_SAFETY",
+    "MISSING_DIVIDER": "SAFETY_RAIL",
+    "STREET_LIGHT": "LIGHTING",
+}
+
+RECOMMENDATIONS = {
+    "ROAD_SURFACE": "Schedule resurfacing / patch repair and mark the segment for pre-monsoon inspection.",
+    "DRAINAGE": "Clear blocked drains and add covered culverts in the waterlogging-prone stretch.",
+    "PEDESTRIAN_SAFETY": "Re-mark zebra crossings and add pedestrian signal phasing near the crossing.",
+    "SIGNALIZATION": "Replace or install missing or damaged traffic signage and reflectors.",
+    "SAFETY_RAIL": "Install road dividers / median guards on the high-risk carriageway.",
+    "LIGHTING": "Repair street lights and add illumination on the affected block.",
+}
+
+
+def _haversine_m(la1: float, lo1: float, la2: float, lo2: float) -> float:
+    import math
+    R = 6371000
+    phi1, phi2 = math.radians(la1), math.radians(la2)
+    dphi = math.radians(la2 - la1)
+    dlam = math.radians(lo2 - lo1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+async def route_delays(db: AsyncSession) -> list[dict]:
+    """Average delay per route, estimated from observed traffic records.
+
+    Base travel time comes from the route's scheduled duration (or distance/
+    average speed as a fallback); congestion inflates it. Labeled ESTIMATED —
+    the fleet reports live GPS so a future version can diff against on-time
+    arrivals directly.
+    """
+    routes = (await db.execute(select(Route))).scalars().all()
+    if not routes:
+        return []
+
+    out = []
+    for route in routes:
+        buses = (await db.execute(
+            select(Bus).where(Bus.route_id == route.id)
+        )).scalars().all()
+        records = []
+        for bus in buses:
+            recs = (await db.execute(
+                select(TrafficRecord).where(TrafficRecord.bus_id == bus.id)
+            )).scalars().all()
+            records.extend(recs)
+        if not records:
+            continue
+        avg_congestion = sum(r.congestion_score for r in records) / len(records)
+        avg_speed = [r.average_speed for r in records if r.average_speed]
+        obs_speed = sum(avg_speed) / len(avg_speed) if avg_speed else None
+
+        scheduled_min = route.scheduled_duration_min
+        if scheduled_min and obs_speed:
+            base_min = route.distance_km / max(obs_speed, 5) * 60
+        elif scheduled_min:
+            base_min = float(scheduled_min)
+        elif obs_speed and route.distance_km:
+            base_min = route.distance_km / max(obs_speed, 5) * 60
+        else:
+            continue
+
+        min_delay = round(base_min - (scheduled_min or base_min), 1)
+        congestion_multiplier = 1 + max(0.0, (avg_congestion - 35) / 65) * 0.5
+        estimated_duration_min = round(base_min * congestion_multiplier, 1)
+
+        if estimated_duration_min - base_min <= 5:
+            status = "ON_TIME"
+        elif estimated_duration_min - base_min <= 15:
+            status = "DELAYED"
+        else:
+            status = "SEVERE"
+
+        out.append({
+            "route_name": route.route_name,
+            "start_stop": route.start_stop,
+            "end_stop": route.end_stop,
+            "distance_km": route.distance_km,
+            "scheduled_duration_min": scheduled_min,
+            "estimated_duration_min": estimated_duration_min,
+            "delay_min": round(estimated_duration_min - base_min, 1),
+            "avg_congestion_score": round(avg_congestion, 1),
+            "avg_speed_kph": round(obs_speed or 0.0, 1),
+            "status": status,
+            "label": "ESTIMATED",
+        })
+
+    out.sort(key=lambda r: r["delay_min"], reverse=True)
+    return out
+
+
+async def od_matrix(db: AsyncSession, days: int = 7) -> dict:
+    """Origin-destination flows per corridor.
+
+    Aggregate vehicle counts observed by fleet cameras along each route; the
+    route's endpoints define origin/destination. Labeled ESTIMATED since the
+    counts are on-road observations, not ticketing data.
+    """
+    since = await _since(db, days)
+    routes = (await db.execute(select(Route))).scalars().all()
+    matrix: list[dict] = []
+    for route in routes:
+        buses = (await db.execute(
+            select(Bus).where(Bus.route_id == route.id)
+        )).scalars().all()
+        bus_ids_ = [b.id for b in buses]
+        if not bus_ids_:
+            continue
+        rows = await db.execute(
+            select(
+                func.count(TrafficRecord.id),
+                func.sum(TrafficRecord.vehicle_count),
+                func.avg(TrafficRecord.congestion_score),
+            ).where(
+                TrafficRecord.bus_id.in_(bus_ids_),
+                TrafficRecord.created_at >= since,
+            )
+        )
+        count, vehicles, congestion = rows.one()
+        count = int(count or 0)
+        vehicles = int(vehicles or 0)
+        if count == 0:
+            continue
+        avg_speed = (await db.execute(
+            select(func.avg(TrafficRecord.average_speed)).where(
+                TrafficRecord.bus_id.in_(bus_ids_),
+                TrafficRecord.created_at >= since,
+            )
+        )).scalar()
+        est_travel_min = 0
+        if avg_speed and route.distance_km:
+            est_travel_min = round(route.distance_km / max(float(avg_speed), 5) * 60, 1)
+        matrix.append({
+            "route_name": route.route_name,
+            "origin": route.start_stop,
+            "destination": route.end_stop,
+            "trips": count,
+            "vehicles_observed": vehicles,
+            "avg_congestion_score": round(float(congestion or 0), 1),
+            "est_travel_min": est_travel_min,
+        })
+    matrix.sort(key=lambda r: r["vehicles_observed"], reverse=True)
+    return {"label": "ESTIMATED", "matrix": matrix}
+
+
+async def infrastructure_health(db: AsyncSession) -> dict:
+    """Deficiency analysis across active issues on the fleet-serviced network.
+
+    Issues are grouped into infrastructure categories, severity-weighted, and
+    pinned to the nearest known stop so authorities know which stretch to act on.
+    """
+    rows = (await db.execute(
+        select(Issue).where(
+            Issue.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "REOPENED"])
+        )
+    )).scalars().all()
+
+    stops: list[tuple[str, float, float]] = []
+    for route in (await db.execute(select(Route))).scalars().all():
+        for stop in (route.stops or []):
+            name = stop.get("name") if isinstance(stop, dict) else str(stop)
+            lat = stop.get("lat") if isinstance(stop, dict) else None
+            lon = stop.get("lon") if isinstance(stop, dict) else None
+            if name and lat is not None and lon is not None:
+                stops.append((name, float(lat), float(lon)))
+
+    categories: dict[str, dict] = {}
+    for issue in rows:
+        category = DEFICIENCY_CATEGORIES.get(issue.issue_type, "GENERAL")
+        bucket = categories.setdefault(category, {
+            "category": category,
+            "count": 0,
+            "severity_weight": 0,
+            "affected_stops": set(),
+            "issues": [],
+        })
+        bucket["count"] += 1
+        bucket["severity_weight"] += SEVERITY_ORDER.get(issue.severity, 1)
+
+        nearest = None
+        best = None
+        for name, lat, lon in stops:
+            d = _haversine_m(issue.latitude, issue.longitude, lat, lon)
+            if best is None or d < best:
+                best, nearest = d, name
+        if nearest:
+            bucket["affected_stops"].add(nearest)
+        bucket["issues"].append({
+            "issue_id": issue.issue_id,
+            "issue_type": issue.issue_type,
+            "severity": issue.severity,
+            "latitude": issue.latitude,
+            "longitude": issue.longitude,
+        })
+
+    summary = []
+    for bucket in sorted(categories.values(), key=lambda b: b["count"], reverse=True):
+        score = max(0.0, 100 - bucket["count"] * 15 - (bucket["severity_weight"] - bucket["count"]) * 8)
+        summary.append({
+            "category": bucket["category"],
+            "count": bucket["count"],
+            "severity_weight": bucket["severity_weight"],
+            "deficiency_score": round(min(100, score), 1),
+            "affected_stops": sorted(bucket["affected_stops"]),
+            "recommendation": RECOMMENDATIONS.get(bucket["category"], "Investigate the flagged issues on site."),
+        })
+
+    return {"label": "ESTIMATED", "categories": summary}
+
+
 async def generate_sentences(metrics: dict) -> list[str]:
     s = []
     rm = metrics["resolution"]
@@ -200,6 +419,14 @@ async def generate_sentences(metrics: dict) -> list[str]:
     spots = metrics.get("hotspots", [])
     if spots:
         s.append(f"Top hotspot has {spots[0]['count']} active issues near ({spots[0]['latitude']:.4f}, {spots[0]['longitude']:.4f}).")
+    delays = metrics.get("route_delays", [])
+    if any(d["status"] == "SEVERE" for d in delays):
+        worst = next(d for d in delays if d["status"] == "SEVERE")
+        s.append(f"Corridor {worst['route_name']} is running ~{worst['delay_min']:.0f} min behind schedule (severe delay).")
+    infra = metrics.get("infrastructure", {}).get("categories", [])
+    if infra:
+        top_cat = infra[0]
+        s.append(f"Top infrastructure deficiency: {top_cat['category']} ({top_cat['count']} active issues) — {top_cat['recommendation']}")
     return s
 
 
@@ -213,6 +440,9 @@ async def build_insights(db: AsyncSession, days: int = 7) -> dict:
         "road_health": await road_health(db),
         "traffic": await traffic_metrics(db, days),
         "hotspots": await issue_hotspots(db),
+        "route_delays": await route_delays(db),
+        "od_matrix": await od_matrix(db, days),
+        "infrastructure": await infrastructure_health(db),
         "range_days": days,
     }
     metrics["sentences"] = await generate_sentences(metrics)

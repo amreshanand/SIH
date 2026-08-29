@@ -39,6 +39,7 @@ class Event:
             "source": self.source,
             "evidence_url": self.evidence_url,
             "metadata_json": self.metadata,
+            "timestamp": self.timestamp,
         }
 
 
@@ -50,6 +51,7 @@ class EventEngine:
         "road_crack": "MEDIUM",
         "missing_sign": "MEDIUM",
         "missing_crossing": "MEDIUM",
+        "missing_divider": "MEDIUM",
         "damaged_sign": "MEDIUM",
         "street_light": "MEDIUM",
         "pedestrian_risk": "HIGH",
@@ -76,6 +78,7 @@ class EventEngine:
         self.min_observations = min_observations
         self.cluster_distance_meters = cluster_distance_meters
         self._pending: dict[str, list[dict[str, Any]]] = {}
+        self._last_emit: dict[str, float] = {}
         self._event_counter = 0
 
     def process_detection(
@@ -106,6 +109,18 @@ class EventEngine:
         self._pending[key] = [o for o in self._pending[key] if o["timestamp"] > cutoff]
 
         if len(self._pending[key]) >= self.min_observations:
+            # Cooldown: do not re-report the same detection class until the
+            # temporal window has elapsed since the last emission. Without this
+            # a continuously-present object floods events every min_observations
+            # frames.
+            if now - self._last_emit.get(key, 0.0) < self.temporal_window:
+                # Discard the accumulated batch so a long-lived object doesn't
+                # keep stacking observations during cooldown. Otherwise the
+                # next emission would report observation_count far above
+                # min_observations and silently inflate its severity.
+                self._pending[key] = []
+                return None
+
             observations = self._pending[key]
             avg_conf = sum(o["confidence"] for o in observations) / len(observations)
             self._event_counter += 1
@@ -143,6 +158,7 @@ class EventEngine:
             )
 
             self._pending[key] = []
+            self._last_emit[key] = now
             log.info("[EVENT] %s detected (conf=%.2f, sev=%s, obs=%d)",
                      event.event_type, avg_conf, severity, len(observations))
             return event
@@ -184,9 +200,14 @@ class EventEngine:
         if vehicle_count < congestion_threshold:
             return None
 
+        now = time.time()
+        if now - self._last_emit.get("traffic", 0.0) < self.temporal_window:
+            return None
+
         congestion = min(100, int(vehicle_count * 5))
 
         self._event_counter += 1
+        self._last_emit["traffic"] = now
         return Event(
             event_id=f"EVT-TRAFFIC-{int(time.time())}-{self._event_counter:04d}",
             event_type="TRAFFIC_CONGESTION",

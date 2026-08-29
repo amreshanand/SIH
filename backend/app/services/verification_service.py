@@ -66,6 +66,13 @@ async def process_verification(
                     "reason": f"Distinct bus verification arrives within {settings.verification_separation_seconds}s minimum separation",
                 }
 
+    # Look up the issue before writing anything so we never persist an orphan
+    # verification record for a missing issue.
+    issue_result = await db.execute(select(Issue).where(Issue.id == issue_id))
+    issue = issue_result.scalar_one_or_none()
+    if not issue:
+        return {"status": "issue_not_found"}
+
     record = VerificationRecord(
         issue_id=issue_id,
         bus_id=bus_id,
@@ -76,12 +83,6 @@ async def process_verification(
         evidence_url=evidence_url,
     )
     db.add(record)
-
-    issue_result = await db.execute(select(Issue).where(Issue.id == issue_id))
-    issue = issue_result.scalar_one_or_none()
-    if not issue:
-        await db.commit()
-        return {"status": "issue_not_found"}
 
     # SQL-level unique-bus aggregation (no python post-hoc dedup).
     distinct_clear = await db.execute(

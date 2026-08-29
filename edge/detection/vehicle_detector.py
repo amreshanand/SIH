@@ -4,6 +4,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+import torch
+try:
+    import torch
+    _orig_load = torch.load
+    def _custom_torch_load(*args, **kwargs):
+        if "weights_only" not in kwargs:
+            kwargs["weights_only"] = False
+        return _orig_load(*args, **kwargs)
+    torch.load = _custom_torch_load
+except Exception:
+    pass
 
 VEHICLE_CLASSES = {"car", "motorcycle", "bus", "truck", "bicycle"}
 ALL_DETECTABLE_CLASSES = VEHICLE_CLASSES | {"person"}
@@ -74,6 +85,24 @@ class MockDetector(Detector):
                     bbox=scaled_ped,
                     metadata={"source": "SIMULATED"},
                 ))
+
+        # One continuously-moving vehicle (the erratic driver). It cruises at a
+        # normal speed, then bursts for a few frames each cycle. The IoU tracker
+        # keeps its identity across the burst, and the pipeline's motion-anomaly
+        # detector flags the acceleration spike as RASH_DRIVING (plate OCR +
+        # timestamp + GPS alert). Placed low in the frame to avoid bbox overlap
+        # with the static traffic lanes above.
+        if self._frame_count >= 40:
+            cycle = self._frame_count % 400
+            burst = 60 <= cycle < 68
+            step = 55 if burst else 8
+            x = 20 + (cycle * step) % max(1, w - 170)
+            detections.append(Detection(
+                class_name="car",
+                confidence=0.88,
+                bbox=(int(x), int(0.62 * h), int(x + max(90, int(0.22 * w))), int(0.62 * h + int(0.19 * h))),
+                metadata={"source": "SIMULATED", "erratic": bool(burst)},
+            ))
 
         return detections
 

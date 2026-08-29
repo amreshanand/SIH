@@ -28,6 +28,8 @@ interface StepResult {
   issue_id?: string;
   issue_status?: string;
   event_id?: string;
+  incident_id?: string;
+  incident_status?: string;
   source?: string;
   verification?: VerificationDetail;
 }
@@ -260,9 +262,10 @@ export default function DemoPage() {
                     <span className="text-xs text-gray-300">{step.message}</span>
                     <Badge text={(step.source || "SIMULATED").toUpperCase()} variant="default" />
                   </div>
-                  {(step.event_id || step.issue_id) && (
+                  {(step.event_id || step.issue_id || step.incident_id) && (
                     <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
                       {step.event_id && <span className="rounded bg-gray-800 px-1.5 py-0.5">Event {step.event_id}</span>}
+                      {step.incident_id && <span className="rounded bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 text-red-400">Incident {step.incident_id} · {step.incident_status || "DETECTED"}</span>}
                       {step.issue_id && <span className="rounded bg-gray-800 px-1.5 py-0.5">Issue {step.issue_id} · {step.issue_status || "—"}</span>}
                     </div>
                   )}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/verification", tags=["Verification"])
 logger = logging.getLogger(__name__)
 
 
-@router.post("", response_model=VerificationResponse, status_code=201)
+@router.post("", status_code=201)
 async def create_verification(
     payload: VerificationCreate,
     db: AsyncSession = Depends(get_db),
@@ -50,19 +51,39 @@ async def create_verification(
         "issue_status": result.get("issue_status"),
     })
 
-    return {
+    base = {
         "issue_id": str(payload.issue_id),
         "bus_id": str(payload.bus_id),
         "detection_result": payload.detection_result,
         "confidence": payload.confidence,
+        "latitude": payload.latitude,
+        "longitude": payload.longitude,
+    }
+
+    if result.get("status") == "deduplicated":
+        return {
+            **base,
+            "status": "deduplicated",
+            "reason": result.get("reason"),
+            "result": "PENDING",
+        }
+
+    return {
+        **base,
+        "status": "processed",
+        "verification_id": result.get("verification_id"),
         "result": result.get("result", "PENDING"),
+        "unique_clear_count": result.get("unique_clear_count", 0),
+        "unique_detected_count": result.get("unique_detected_count", 0),
+        "issue_status": result.get("issue_status"),
+        "timestamp": datetime.now(timezone.utc),
     }
 
 
 @router.get("/issue/{issue_id}", response_model=list[VerificationResponse])
 async def get_verification_history(
     issue_id: str, db: AsyncSession = Depends(get_db)
-) -> list[dict]:
+) -> list[VerificationRecord]:
     try:
         iid = uuid.UUID(issue_id)
     except ValueError:
@@ -72,14 +93,4 @@ async def get_verification_history(
         .where(VerificationRecord.issue_id == iid)
         .order_by(VerificationRecord.timestamp.desc())
     )
-    records = list(result.scalars().all())
-    return [
-        {
-            "issue_id": str(r.issue_id),
-            "bus_id": str(r.bus_id),
-            "detection_result": r.detection_result,
-            "confidence": r.confidence,
-            "result": r.result,
-        }
-        for r in records
-    ]
+    return list(result.scalars().all())

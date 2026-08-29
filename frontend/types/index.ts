@@ -54,6 +54,7 @@ export interface Issue {
   department: string | null;
   status: string;
   metadata_json: Record<string, unknown> | null;
+  evidence_urls?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -70,7 +71,6 @@ export interface Incident {
   plate_text: string | null;
   plate_confidence: number | null;
   evidence_url: string | null;
-  source?: string;
   status: string;
   created_at: string;
 }
@@ -93,18 +93,23 @@ export interface Notification {
   notification_type: string;
   title: string;
   body: string | null;
+  data: string | null;
+  metadata_json: Record<string, unknown> | null;
   read: boolean;
   created_at: string;
 }
 
 export interface TrafficRecord {
   id: string;
+  bus_id: string;
   road_segment: string;
   vehicle_count: number;
+  vehicle_distribution: Record<string, number> | null;
   average_speed: number;
   congestion_score: number;
   latitude: number;
   longitude: number;
+  bus_speed: number | null;
   created_at: string;
 }
 
@@ -170,5 +175,87 @@ export interface Insights {
   traffic: Record<string, unknown>;
   hotspots: Array<{ latitude: number; longitude: number; count: number }>;
   sentences: string[];
+}
+
+export interface OdMatrixEntry {
+  route_name: string;
+  origin: string;
+  destination: string;
+  trips: number;
+  vehicles_observed: number;
+  avg_congestion_score: number;
+  est_travel_min: number;
+}
+
+export interface OdMatrix {
+  label: string;
+  matrix: OdMatrixEntry[];
+}
+
+export interface RouteDelay {
+  route_name: string;
+  start_stop: string;
+  end_stop: string;
+  distance_km: number;
+  scheduled_duration_min: number;
+  estimated_duration_min: number;
+  delay_min: number;
+  avg_congestion_score: number;
+  avg_speed_kph: number;
+  status: "ON_TIME" | "DELAYED" | "SEVERE";
+  label: string;
+}
+
+export interface InfrastructureDeficiency {
+  category: string;
+  count: number;
+  severity_weight: number;
+  deficiency_score: number;
+  affected_stops: string[];
+  recommendation: string;
+}
+
+export interface InfrastructureReport {
+  label: string;
+  categories: InfrastructureDeficiency[];
+}
+
+export interface FleetCamera {
+  camera: string;
+  url: string;
+  active: boolean;
+}
+
+export interface FleetEvent {
+  event_id: string;
+  event_type: string;
+  severity: string;
+  confidence: number;
+  created_at: string;
+}
+
+export interface FleetBus {
+  bus_id: string;
+  route_id: string;
+  route_name: string;
+  status: "LIVE" | "STANDBY";
+  fps: number;
+  ai_mode: string;
+  gps_mode: string;
+  latitude: number;
+  longitude: number;
+  vehicle_counts: Record<string, number>;
+  events_today: number;
+  incidents_today: number;
+  cameras: FleetCamera[];
+  recent_events: FleetEvent[];
+}
+
+export interface FleetStatus {
+  generated_at: string;
+  total_buses: number;
+  live_buses: number;
+  cameras_online: number;
+  buses: FleetBus[];
 }
 

@@ -22,6 +22,7 @@ class IssueResponse(BaseModel):
     department: Optional[str] = None
     status: str
     metadata_json: Optional[dict[str, Any]] = None
+    evidence_urls: Optional[list[str]] = []
     created_at: datetime
     updated_at: datetime
 
@@ -38,7 +39,6 @@ class IssueUpdate(BaseModel):
     severity: Optional[str] = None
     department: Optional[str] = None
     affected_road: Optional[str] = None
-    assigned_to: Optional[uuid.UUID] = None
 
 
 class IssueAssignmentCreate(BaseModel):
