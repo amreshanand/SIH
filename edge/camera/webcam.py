@@ -21,12 +21,11 @@ class WebcamSource(VideoSource):
     def open(self) -> None:
         log.info("[EDGE] Opening webcam device %d", self.device_id)
         self.cap = cv2.VideoCapture(self.device_id)
-        if self.cap.isOpened():
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-            log.info("[EDGE] Webcam connected")
-        else:
-            log.error("[EDGE] Webcam not available")
+        if not self.cap.isOpened():
+            raise RuntimeError(f"Could not open webcam device {self.device_id}")
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        log.info("[EDGE] Webcam connected")
 
     def read(self) -> tuple[bool, np.ndarray | None]:
         if self.cap is None or not self.cap.isOpened():

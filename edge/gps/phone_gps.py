@@ -51,9 +51,6 @@ class PhoneGPSProvider(GPSProvider):
             # Return the last known fix (cache) within the poll interval.
             return self._last_data
 
-        if not self._available:
-            return self._last_data
-
         self._last_poll = now
         try:
             resp = httpx.get(self.gps_url, timeout=2)
@@ -66,12 +63,14 @@ class PhoneGPSProvider(GPSProvider):
                     heading=d.get("heading", 0),
                     source="PHONE",
                 )
+                # Success clears both the degraded and unavailable flags so the
+                # provider recovers after any transient (or initial) failure.
+                self._available = True
                 if self._degraded:
                     self._degraded = False
                     log.info("[GPS] Phone GPS recovered")
                 return self._last_data
             else:
-                # Keep last fix, mark degraded, attempt to reconnect next poll.
                 self._degraded = True
                 return self._last_data
         except Exception:

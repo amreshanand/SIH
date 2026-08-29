@@ -29,6 +29,7 @@ class EvidenceCapture:
         longitude: float = 0.0,
         ai_mode: str = "SIMULATED",
         model_name: str = "mock",
+        metadata: dict | None = None,
     ) -> str:
         annotated = frame.copy()
         h, w = annotated.shape[:2]
@@ -38,6 +39,12 @@ class EvidenceCapture:
             annotated = cv2.resize(annotated, (self.max_width, int(h * scale)))
 
         h, w = annotated.shape[:2]
+
+        # Draw bounding box for defect/detection if provided in metadata
+        if "bbox" in (metadata or {}):
+            bx1, by1, bx2, by2 = metadata["bbox"]
+            cv2.rectangle(annotated, (bx1, by1), (bx2, by2), (0, 0, 255), 3)
+            cv2.putText(annotated, f"DEFECT: {event_type} ({confidence:.0%})", (bx1, max(by1 - 10, 25)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
         bar_h = 22
         cv2.rectangle(annotated, (0, 0), (w, bar_h), (20, 20, 20), -1)

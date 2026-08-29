@@ -25,7 +25,11 @@ async def _resolve_bus(db: AsyncSession, bus_ref: str):
     except ValueError:
         bid = None
         bus = None
-    if bus is None and bid is None:
+    # Fall through to the bus-number path when the reference isn't a UUID, OR
+    # when it parses as a UUID but no such bus exists (e.g. an edge device
+    # sending a well-formed-but-unregistered UUID). Otherwise bus.id below would
+    # crash with AttributeError.
+    if bus is None:
         bus = (await db.execute(select(Bus).where(Bus.bus_number == str(bus_ref)))).scalar_one_or_none()
         if bus is None:
             bus = Bus(bus_number=str(bus_ref), status="ACTIVE")
@@ -80,19 +84,37 @@ async def create_event(
     })
 
     try:
-        from backend.app.services.issue_service import create_or_merge_issue
-        issue = await create_or_merge_issue(event, db)
-        if issue:
-            await ws_manager.broadcast("events", {
-                "type": "issue_updated",
-                "issue_id": issue.issue_id,
-                "status": issue.status,
-                "severity": issue.severity,
-                "department": issue.department,
-            })
+        from backend.app.services.issue_service import create_or_merge_issue, INCIDENT_EVENT_TYPES
+        if payload.event_type in INCIDENT_EVENT_TYPES:
+            # High-risk events promote to command-center Incident alerts (plate +
+            # GPS + timestamp flow) rather than infrastructure Issues.
+            from backend.app.services.incident_service import create_incident_from_event
+            incident = await create_incident_from_event(event, db)
+            if incident:
+                await ws_manager.broadcast("events", {
+                    "type": "new_incident",
+                    "incident_id": incident.incident_id,
+                    "incident_type": incident.incident_type,
+                    "severity": incident.severity,
+                    "plate_text": incident.plate_text,
+                    "latitude": incident.latitude,
+                    "longitude": incident.longitude,
+                    "bus_id": str(incident.bus_id),
+                })
+        else:
+            issue = await create_or_merge_issue(event, db)
+            if issue:
+                await ws_manager.broadcast("events", {
+                    "type": "issue_updated",
+                    "event_id": event.event_id,
+                    "issue_id": issue.issue_id,
+                    "status": issue.status,
+                    "severity": issue.severity,
+                    "department": issue.department,
+                })
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning("Issue creation failed for event %s: %s", event.event_id, e)
+        logging.getLogger(__name__).warning("Issue/incident creation failed for event %s: %s", event.event_id, e)
 
     return event
 
@@ -117,8 +139,15 @@ async def list_events(
         q = q.where(Event.severity == severity)
         count_q = count_q.where(Event.severity == severity)
     if bus_id:
-        q = q.where(Event.bus_id == bus_id)
-        count_q = count_q.where(Event.bus_id == bus_id)
+        import uuid as _uuid
+        try:
+            bid = _uuid.UUID(str(bus_id))
+        except ValueError:
+            bus_row = (await db.execute(select(Bus).where(Bus.bus_number == str(bus_id)))).scalar_one_or_none()
+            bid = bus_row.id if bus_row else None
+        if bid is not None:
+            q = q.where(Event.bus_id == bid)
+            count_q = count_q.where(Event.bus_id == bid)
     if status:
         q = q.where(Event.status == status)
         count_q = count_q.where(Event.status == status)

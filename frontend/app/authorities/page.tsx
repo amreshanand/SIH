@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Card, Badge } from "@/components/ui/Card";
+import { Card, Badge, KpiCard } from "@/components/ui/Card";
 import Link from "next/link";
 import type { Issue } from "@/types";
 
@@ -34,14 +34,10 @@ export default function AuthoritiesPage() {
       {loading && <div className="text-gray-500 text-sm">Loading...</div>}
 
       <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: "New Issues", count: stats.new, color: "red" },
-          { label: "High Priority", count: stats.high, color: "orange" },
-          { label: "In Progress", count: stats.inProgress, color: "blue" },
-          { label: "Resolved", count: stats.resolved, color: "green" },
-        ].map((s) => (
-          <KpiCard key={s.label} label={s.label} value={s.count} color={s.color} />
-        ))}
+        <KpiCard label="New Issues" value={stats.new} color="red" />
+        <KpiCard label="High Priority" value={stats.high} color="orange" />
+        <KpiCard label="In Progress" value={stats.inProgress} color="blue" />
+        <KpiCard label="Resolved" value={stats.resolved} color="green" />
       </div>
 
       <div className="flex gap-2">
@@ -88,21 +84,6 @@ export default function AuthoritiesPage() {
           <Card><div className="p-8 text-center text-gray-600 text-xs">No issues with status: {filter}</div></Card>
         )}
       </div>
-    </div>
-  );
-}
-
-function KpiCard({ label, value, color }: { label: string; value: number; color: string }) {
-  const colors: Record<string, string> = {
-    red: "border-red-500/30 text-red-400",
-    orange: "border-orange-500/30 text-orange-400",
-    blue: "border-blue-500/30 text-blue-400",
-    green: "border-green-500/30 text-green-400",
-  };
-  return (
-    <div className={`bg-gray-900 border ${colors[color] || colors.red} rounded-lg p-4`}>
-      <div className="text-[10px] uppercase tracking-widest text-gray-500">{label}</div>
-      <div className={`text-2xl font-bold mt-1 ${colors[color]?.split(" ")[1]}`}>{value}</div>
     </div>
   );
 }

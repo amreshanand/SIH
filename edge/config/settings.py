@@ -12,6 +12,7 @@ class VideoSourceType(str, Enum):
     WEBCAM = "webcam"
     FILE = "file"
     MOCK = "mock"
+    YOUTUBE = "youtube"
 
 
 class GPSMode(str, Enum):
@@ -52,6 +53,11 @@ class Settings(BaseSettings):
     phone_gps_url: str = "http://192.168.1.100:8080/gps"
     video_source: VideoSourceType = VideoSourceType.PHONE
     video_file_path: str = "data/videos/front.mp4"
+    youtube_live_url: str = ""
+    youtube_rear_url: str = ""
+    youtube_left_url: str = ""
+    youtube_right_url: str = ""
+    youtube_cabin_url: str = ""
     inference_fps: int = 10
     frame_width: int = 640
     frame_height: int = 480

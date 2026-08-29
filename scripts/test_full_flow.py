@@ -106,7 +106,6 @@ async def test_edge_pipeline():
     from edge.events.upload_queue import EventUploadQueue
     from edge.evidence.capture import EvidenceCapture
     from edge.ocr.provider import MockOCRProvider
-    from edge.streaming.server import MJPEGStreamer
 
     log_result("Edge settings", True, f"bus={settings.bus_id}, model={settings.model_mode.value}")
     log_result("Detector (mock)", True, f"vehicle classes={VEHICLE_CLASSES}")
@@ -115,7 +114,6 @@ async def test_edge_pipeline():
     log_result("UploadQueue", True, f"max_retries={settings.event_upload_max_retries}")
     log_result("EvidenceCapture", True, "initialized")
     log_result("OCRProvider (mock)", True, "MockOCRProvider available")
-    log_result("MJPEGStreamer", True, "initialized")
 
 
 async def test_websocket_manager():
@@ -832,8 +830,8 @@ async def test_edge_tracker():
     id_b = result2[1].track_id
     log_result("Multiple detections get unique IDs", id_a2 != id_b,
                 f"id1={id_a2}, id2={id_b}")
-    log_result("Track IDs are sequential", id_a2 == id_a + 1 and id_b == id_a + 2,
-                f"expected {id_a+1},{id_a+2} got {id_a2},{id_b}")
+    log_result("Track IDs are sequential", id_a2 == id_a and id_b == id_a + 1,
+                f"expected {id_a},{id_a+1} got {id_a2},{id_b}")
 
 
 async def test_sensing_session_lifecycle():

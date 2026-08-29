@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { api } from "@/lib/api";
-import { DashboardStats, Event, Issue } from "@/types";
+import { DashboardStats, Event, Issue, Incident } from "@/types";
 import { KpiCard, Card, CardHeader, Badge } from "@/components/ui/Card";
+import Link from "next/link";
 
 interface LiveEvent {
   type?: string;
@@ -25,6 +26,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
   const { messages, connected } = useWebSocket("events");
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const liveEvents = useMemo<LiveEvent[]>(() => messages.slice(0, 20) as LiveEvent[], [messages]);
@@ -33,6 +35,7 @@ export default function DashboardPage() {
     api.getDashboardStats().then(setStats).catch(console.error);
     api.getEvents().then((r) => setEvents(r.events)).catch(console.error);
     api.getIssues().then((r) => setIssues(r.issues)).catch(console.error);
+    api.getIncidents().then((r) => setIncidents(r.incidents)).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -123,29 +126,87 @@ export default function DashboardPage() {
           <Card>
             <CardHeader>
               <span className="text-sm font-medium text-gray-300">Open Issues</span>
+              <Badge text={`${issues.length}`} variant="warning" />
             </CardHeader>
             <div className="p-4 max-h-48 overflow-y-auto space-y-1.5">
               {issues.length === 0 && <p className="text-[10px] text-gray-600">No open issues</p>}
               {issues.slice(0, 8).map((i) => (
-                <div key={i.id} className="flex items-center justify-between p-1.5 bg-gray-800/30 rounded text-[10px]">
-                  <span className="text-gray-300">{i.issue_id}</span>
-                  <div className="flex items-center gap-1.5">
-                    <Badge text={i.severity} variant={i.severity.toLowerCase()} />
-                    <Badge text={i.status} variant={i.status === "RESOLVED" ? "success" : "default"} />
+                <Link key={i.id} href={`/issues/${i.id}`}>
+                  <div className="flex items-center justify-between p-1.5 bg-gray-800/30 rounded text-[10px] hover:bg-gray-800/60 transition-colors">
+                    <span className="text-gray-300">{i.issue_id}</span>
+                    <div className="flex items-center gap-1.5">
+                      <Badge text={i.severity} variant={i.severity.toLowerCase()} />
+                      <Badge text={i.status} variant={i.status === "RESOLVED" ? "success" : "default"} />
+                    </div>
                   </div>
-                </div>
+                </Link>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <span className="text-sm font-medium text-gray-300">Recent Incidents</span>
+              <Badge text={`${incidents.length}`} variant="critical" />
+            </CardHeader>
+            <div className="p-4 max-h-48 overflow-y-auto space-y-1.5">
+              {incidents.length === 0 && <p className="text-[10px] text-gray-600">No incidents recorded</p>}
+              {incidents.slice(0, 5).map((inc) => (
+                <Link key={inc.id} href={`/incidents/${inc.id}`}>
+                  <div className="flex items-center justify-between p-1.5 bg-gray-800/30 rounded text-[10px] hover:bg-gray-800/60 transition-colors">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-gray-300 truncate">{inc.incident_type}</span>
+                      {inc.plate_text && <span className="text-yellow-400/80 font-mono">{inc.plate_text}</span>}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge text={inc.severity} variant={inc.severity.toLowerCase()} />
+                    </div>
+                  </div>
+                </Link>
               ))}
             </div>
           </Card>
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
-        <KpiCard label="Total Events" value={stats?.total_events ?? 0} color="purple" subtitle="All time" />
-        <KpiCard label="Total Issues" value={stats?.total_issues ?? 0} color="blue" subtitle="All time" />
-        <KpiCard label="Total Incidents" value={stats?.total_incidents ?? 0} color="red" subtitle="All time" />
-        <KpiCard label="Traffic Hotspots" value={stats?.traffic_hotspots ?? 0} color="orange" subtitle="Active" />
-        <KpiCard label="WS Status" value={connected ? "LIVE" : "OFF"} color={connected ? "green" : "red"} subtitle="WebSocket" />
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardHeader>
+            <span className="text-sm font-medium text-gray-300">Detection Mix (recent)</span>
+            <Badge text={`${events.length} events`} variant="info" />
+          </CardHeader>
+          <div className="p-4">
+            {events.length === 0 && (
+              <p className="text-[10px] text-gray-600">No detections yet — seed demo data to populate</p>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(
+                events.reduce<Record<string, number>>((acc, e) => {
+                  acc[e.event_type] = (acc[e.event_type] || 0) + 1;
+                  return acc;
+                }, {})
+              )
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8)
+                .map(([type, count]) => (
+                  <span key={type} className="text-[10px] px-2 py-1 bg-gray-800/60 rounded-full text-gray-300 border border-gray-700/60">
+                    {type.replace(/_/g, " ")} · <span className="text-cyan-400 font-medium">{count}</span>
+                  </span>
+                ))}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="col-span-2">
+          <div className="p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard label="Total Events" value={stats?.total_events ?? 0} color="purple" subtitle="All time" />
+              <KpiCard label="Total Issues" value={stats?.total_issues ?? 0} color="blue" subtitle="All time" />
+              <KpiCard label="Total Incidents" value={stats?.total_incidents ?? 0} color="red" subtitle="All time" />
+              <KpiCard label="Traffic Hotspots" value={stats?.traffic_hotspots ?? 0} color="orange" subtitle="Active" />
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );

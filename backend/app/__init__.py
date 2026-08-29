@@ -69,4 +69,11 @@ def create_app() -> FastAPI:
     from backend.app.api.health import router as health_router
     application.include_router(health_router)
 
+    from fastapi.staticfiles import StaticFiles
+    import os
+    evidence_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "evidence"))
+    if not os.path.exists(evidence_dir):
+        os.makedirs(evidence_dir, exist_ok=True)
+    application.mount("/data/evidence", StaticFiles(directory=evidence_dir), name="evidence")
+
     return application

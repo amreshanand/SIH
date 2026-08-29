@@ -13,6 +13,7 @@ from edge.camera.base import VideoSource
 from edge.camera.phone_stream import PhoneStreamSource
 from edge.camera.webcam import WebcamSource
 from edge.camera.file_video import FileVideoSource
+from edge.camera.youtube import YouTubeSource
 from edge.config.settings import settings
 from edge.detection.vehicle_detector import Detection, MockDetector, YOLODetector, VEHICLE_CLASSES, ALL_DETECTABLE_CLASSES
 from edge.detection.road_defect import MockRoadDefectDetector, RealRoadDefectDetector
@@ -22,7 +23,7 @@ from edge.gps.phone_gps import PhoneGPSProvider
 from edge.gps.simulated import SimulatedGPSProvider
 from edge.events.engine import Event, EventEngine
 from edge.events.upload_queue import EventUploadQueue
-from edge.edge_state import edge_state, ONLINE, DEGRADED, OFFLINE, RECONNECTING
+from edge.edge_state import edge_state
 from edge.evidence.capture import EvidenceCapture
 from edge.ocr.provider import MockOCRProvider, PaddleOCRProvider
 from edge.utils.logger import log
@@ -32,6 +33,7 @@ class EdgePipeline:
     def __init__(self) -> None:
         self._running = False
         self._frame_count = 0
+        self._total_frames = 0
         self._fps_time = time.time()
         self._fps = 0.0
         self._frame_latency_ms = 0.0
@@ -48,6 +50,7 @@ class EdgePipeline:
             "webcam": lambda: WebcamSource(0, settings.frame_width, settings.frame_height),
             "file": lambda: FileVideoSource(settings.video_file_path, settings.frame_width, settings.frame_height),
             "mock": lambda: FileVideoSource(settings.video_file_path, settings.frame_width, settings.frame_height),
+            "youtube": lambda: YouTubeSource(settings.youtube_live_url, settings.frame_width, settings.frame_height),
         }
         self.source: VideoSource = source_map.get(settings.video_source.value, source_map["file"])()
 
@@ -95,6 +98,10 @@ class EdgePipeline:
         self._vehicle_counts: dict[str, int] = {}
         self._http_client: httpx.AsyncClient | None = None
         self._auth_headers = {"X-API-Key": settings.backend_api_key}
+        self._last_pedestrian_risk = 0.0
+        self._last_rash_driving = 0.0
+        # track_id -> {t, cx, cy, speed} for motion-anomaly (rash driving) detection.
+        self._track_motion: dict[int, dict] = {}
 
     def _next_event_id(self, prefix: str = "EVT") -> str:
         self._event_counter += 1
@@ -112,7 +119,12 @@ class EdgePipeline:
 
         try:
             self.source.open()
-            edge_state.component("CAMERA").mark_online(f"source={settings.video_source.value}")
+            if self.source.is_opened():
+                edge_state.component("CAMERA").mark_online(f"source={settings.video_source.value}")
+            else:
+                edge_state.component("CAMERA").mark_degraded(
+                    f"source={settings.video_source.value} not opened — retrying"
+                )
         except Exception as e:
             log.error("[CAMERA] Failed to open source %s: %s", settings.video_source.value, e)
             edge_state.component("CAMERA").mark_failure(str(e))
@@ -126,6 +138,7 @@ class EdgePipeline:
             edge_state.component("GPS").mark_degraded(str(e))
         self._running = True
         self._http_client = httpx.AsyncClient(timeout=10)
+        await self._start_sensing_session()
 
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -140,6 +153,29 @@ class EdgePipeline:
             self._upload_loop(),
             self._heartbeat_loop(),
         )
+
+    async def _start_sensing_session(self) -> None:
+        if not self._session_id or not self._http_client:
+            return
+        try:
+            resp = await self._http_client.post(
+                f"{settings.backend_url}/api/sensing/sessions/start",
+                json={
+                    "session_id": self._session_id,
+                    "bus_id": settings.bus_id,
+                    "camera_id": settings.camera_position.value,
+                    "gps_source": settings.gps_mode.value,
+                    "ai_mode": settings.model_mode.value,
+                    "model_name": settings.yolo_model_path if settings.model_mode.value == "real" else "mock",
+                },
+                headers=self._auth_headers,
+            )
+            if resp.status_code in (200, 201, 409):
+                edge_state.component("BACKEND").mark_online("sensing session registered")
+            else:
+                log.warning("[SENSING] Session start rejected %d", resp.status_code)
+        except Exception as e:
+            log.warning("[SENSING] Session start failed: %s", e)
 
     async def _process_loop(self) -> None:
         while self._running:
@@ -159,6 +195,7 @@ class EdgePipeline:
             return
 
         self._frame_count += 1
+        self._total_frames += 1
         now = time.time()
         if now - self._fps_time >= 1.0:
             self._fps = self._frame_count / (now - self._fps_time)
@@ -208,7 +245,7 @@ class EdgePipeline:
                 frame_height=frame.shape[0],
             )
             if event:
-                self._queue_event(event, frame, det)
+                self._queue_event(event, annotated, det)
 
         for det in person_detections:
             for veh in vehicle_detections:
@@ -219,13 +256,18 @@ class EdgePipeline:
                     vy = (veh.bbox[1] + veh.bbox[3]) / 2
                     dist = ((px - vx) ** 2 + (py - vy) ** 2) ** 0.5
                     if dist < 100:
+                        # Cooldown: avoid flooding identical PEDESTRIAN_RISK
+                        # incidents every frame while a person lingers near a car.
+                        if time.time() - self._last_pedestrian_risk < settings.event_temporal_window:
+                            break
+                        self._last_pedestrian_risk = time.time()
                         ev = self._create_incident_event(
                             "PEDESTRIAN_RISK", "HIGH", 0.78, gps, frame,
                             {"pedestrian_track": det.track_id, "vehicle_track": veh.track_id, "proximity_px": round(dist, 1)},
                             plate_bbox=veh.bbox,
                         )
                         if ev:
-                            self._queue_event(ev, frame, None)
+                            self._queue_event(ev, annotated, None)
                         break
 
         vehicle_count = len(vehicle_detections)
@@ -235,7 +277,67 @@ class EdgePipeline:
                 congestion_threshold=settings.traffic_congestion_threshold,
             )
             if traffic_event:
-                self._queue_event(traffic_event, frame, None)
+                self._queue_event(traffic_event, annotated, None)
+
+        # Unsafe-driving detection: any tracked vehicle that shows a sudden
+        # strong acceleration spike gets reported as RASH_DRIVING with the
+        # plate attempt, timestamp and GPS attached (the incident-alert flow).
+        self._detect_rash_driving(vehicle_detections, gps, frame, annotated)
+
+    def _detect_rash_driving(
+        self,
+        detections: list[Detection],
+        gps: GPSData | None,
+        frame: np.ndarray,
+        annotated: np.ndarray,
+    ) -> None:
+        if not detections:
+            self._track_motion.clear()
+            return
+        now = time.time()
+        frame_w = frame.shape[1]
+        threshold_px = 0.15 * frame_w
+        cooldown_ok = now - self._last_rash_driving > settings.event_temporal_window * 5
+
+        for det in detections:
+            if det.track_id is None:
+                continue
+            tid = det.track_id
+            cx = (det.bbox[0] + det.bbox[2]) / 2
+            cy = (det.bbox[1] + det.bbox[3]) / 2
+            prev = self._track_motion.get(tid)
+            if prev is None:
+                self._track_motion[tid] = {"t": now, "cx": cx, "cy": cy, "speed": 0.0}
+                continue
+
+            dt = now - prev["t"]
+            if dt <= 0:
+                continue
+            dist = ((cx - prev["cx"]) ** 2 + (cy - prev["cy"]) ** 2) ** 0.5
+            speed = dist / dt
+            prev_speed = prev["speed"]
+            prev["t"] = now
+            prev["cx"], prev["cy"] = cx, cy
+            prev["speed"] = 0.4 * prev_speed + 0.6 * speed
+
+            if prev_speed > 0 and speed > prev_speed * 2.5 and speed > threshold_px and cooldown_ok:
+                self._last_rash_driving = now
+                severity = "CRITICAL" if speed > threshold_px * 2.5 else "HIGH"
+                ev = self._create_incident_event(
+                    "RASH_DRIVING", severity, 0.82, gps, frame,
+                    {
+                        "vehicle_class": det.class_name,
+                        "track_id": tid,
+                        "speed_px_s": round(speed, 1),
+                        "prev_speed_px_s": round(prev_speed, 1),
+                    },
+                    plate_bbox=det.bbox,
+                )
+                if ev:
+                    self._queue_event(ev, annotated, det)
+                    log.info("[INCIDENT] RASH_DRIVING track=%d speed=%.0fpx/s (prev %.0f) -> plate+GPS alert",
+                             tid, speed, prev_speed)
+                return
 
     def _create_incident_event(
         self, event_type: str, severity: str, confidence: float,
@@ -250,12 +352,8 @@ class EdgePipeline:
             # OCR the vehicle region (the detection that triggered the incident),
             # never an arbitrary hardcoded rectangle.
             crop = plate_bbox or metadata.get("vehicle_bbox")
-            if crop is None:
-                complaint = metadata.get("vehicle_bbox")
-            else:
-                complaint = crop
-            if complaint:
-                ocr_result = self.ocr.detect_plate(frame, tuple(complaint))
+            if crop:
+                ocr_result = self.ocr.detect_plate(frame, tuple(crop))
                 if ocr_result:
                     plate_text = ocr_result.plate_text
                     plate_confidence = ocr_result.confidence
@@ -356,6 +454,7 @@ class EdgePipeline:
             longitude=event.longitude,
             ai_mode=settings.model_mode.value,
             model_name=settings.yolo_model_path if real else "mock",
+            metadata={"bbox": detection.bbox} if detection and hasattr(detection, "bbox") else None,
         )
         event.evidence_url = evidence_path
         event_dict = event.to_dict()
@@ -420,7 +519,7 @@ class EdgePipeline:
                 session_id = edge_state.session_id
                 if session_id:
                     payload = {
-                        "frame_count": self._frame_count,
+                        "frame_count": self._total_frames,
                         "event_count": self._session_event_count,
                         "upload_count": self._session_upload_count,
                         "error_count": self._session_error_count,
@@ -446,11 +545,18 @@ class EdgePipeline:
             import asyncio
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self._close_session())
-                loop.create_task(self._http_client.aclose())
+                # Run sequentially in ONE task: the backend session-close POST
+                # round-trip must complete before the client is torn down, or it
+                # may never reach the backend (previous two-task race).
+                loop.create_task(self._shutdown_http())
             except RuntimeError:
                 pass
         log.info("[EDGE] Pipeline stopped (queue pending: %d)", self.upload_queue.pending_count)
+
+    async def _shutdown_http(self) -> None:
+        await self._close_session()
+        if self._http_client:
+            await self._http_client.aclose()
 
     async def _close_session(self) -> None:
         session_id = edge_state.session_id
@@ -463,3 +569,11 @@ class EdgePipeline:
             )
         except Exception:
             pass
+
+
+if __name__ == "__main__":
+    pipeline = EdgePipeline()
+    try:
+        asyncio.run(pipeline.start())
+    except (KeyboardInterrupt, SystemExit):
+        pipeline.stop()

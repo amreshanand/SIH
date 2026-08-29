@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic_settings import BaseSettings
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -45,12 +45,19 @@ class Settings(BaseSettings):
     model_mode: str = "mock"          # real | mock
     gps_mode: str = "simulated"       # phone | simulated
     yolo_model_path: str = "models/yolov8n.pt"
+    road_damage_model_path: str = "models/road_damage.pt"
     ocr_provider: str = "mock"        # paddle | easyocr | mock
     ocr_enabled: bool = False
     video_source: str = "phone"       # phone | webcam | file | mock
     bus_id: str = "BUS-001"
     camera_position: str = "FRONT"    # FRONT | REAR | LEFT | RIGHT | CABIN
     allow_mock_fallback: bool = True
+    # URL of the YouTube live stream the edge pipeline embeds (youtube video source).
+    youtube_live_url: str = ""
+    youtube_rear_url: str = ""
+    youtube_left_url: str = ""
+    youtube_right_url: str = ""
+    youtube_cabin_url: str = ""
 
     # Rate limiting
     login_rate_limit_per_minute: int = 5

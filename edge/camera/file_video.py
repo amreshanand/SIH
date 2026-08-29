@@ -21,10 +21,9 @@ class FileVideoSource(VideoSource):
     def open(self) -> None:
         log.info("[EDGE] Opening video file: %s", self.file_path)
         self.cap = cv2.VideoCapture(self.file_path)
-        if self.cap.isOpened():
-            log.info("[EDGE] Video file opened")
-        else:
-            log.error("[EDGE] Video file not found: %s", self.file_path)
+        if not self.cap.isOpened():
+            raise RuntimeError(f"Could not open video file: {self.file_path}")
+        log.info("[EDGE] Video file opened")
 
     def read(self) -> tuple[bool, np.ndarray | None]:
         if self.cap is None or not self.cap.isOpened():

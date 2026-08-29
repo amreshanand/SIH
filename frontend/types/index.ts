@@ -54,6 +54,7 @@ export interface Issue {
   department: string | null;
   status: string;
   metadata_json: Record<string, unknown> | null;
+  evidence_urls?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -70,7 +71,6 @@ export interface Incident {
   plate_text: string | null;
   plate_confidence: number | null;
   evidence_url: string | null;
-  source?: string;
   status: string;
   created_at: string;
 }
@@ -93,18 +93,23 @@ export interface Notification {
   notification_type: string;
   title: string;
   body: string | null;
+  data: string | null;
+  metadata_json: Record<string, unknown> | null;
   read: boolean;
   created_at: string;
 }
 
 export interface TrafficRecord {
   id: string;
+  bus_id: string;
   road_segment: string;
   vehicle_count: number;
+  vehicle_distribution: Record<string, number> | null;
   average_speed: number;
   congestion_score: number;
   latitude: number;
   longitude: number;
+  bus_speed: number | null;
   created_at: string;
 }
 
@@ -133,11 +138,73 @@ export interface CapabilityBadge {
   [key: string]: unknown;
 }
 
+export interface AdminUser {
+  id: string;
+  username: string;
+  role: string;
+  department: string | null;
+  created_at: string | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  user_id: string | null;
+  username: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export interface Verification {
+  id: string;
+  issue_id: string;
+  bus_id: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  detection_result: string;
+  confidence: number;
+  evidence_url: string | null;
+  result: string;
+}
+
+export interface VerificationPostResult {
+  issue_id: string;
+  bus_id: string;
+  detection_result: string;
+  confidence: number;
+  latitude: number;
+  longitude: number;
+  status: string;
+  reason?: string | null;
+  verification_id?: string | null;
+  result?: string | null;
+  unique_clear_count?: number;
+  unique_detected_count?: number;
+  issue_status?: string | null;
+  timestamp?: string | null;
+}
+
 export interface SystemHealth {
   status: "ok" | "degraded";
   timestamp: number;
   database: { status: string; latency_ms: number };
-  postgis: { status: string };
+  postgis?: { status: string };
+  ai_mode: string;
+  gps_mode: string;
+  demo_mode: boolean;
+  debug: boolean;
+  bus_id: string | null;
+  camera: string | null;
+  spatial_engine: string;
+  pipeline: string;
+  capabilities: Record<string, CapabilityBadge>;
+  production: boolean;
+}
   ai_mode: string;
   gps_mode: string;
   demo_mode: boolean;
@@ -172,31 +239,85 @@ export interface Insights {
   sentences: string[];
 }
 
-export interface CameraStatusInfo {
-  camera_id: string;
-  camera_name: string;
-  camera_type: string;
-  source_mode: string;
-  source_url: string;
-  status: string;
-  fps: number;
-  inference_fps: number;
-  latency_ms: number;
-  counts: Record<string, number>;
-  unique_tracks: number;
+export interface OdMatrixEntry {
+  route_name: string;
+  origin: string;
+  destination: string;
+  trips: number;
+  vehicles_observed: number;
+  avg_congestion_score: number;
+  est_travel_min: number;
 }
 
-export interface StreamStatus {
-  running: boolean;
-  source: string;
-  youtube_live_url?: string;
-  bus_id: string;
+export interface OdMatrix {
+  label: string;
+  matrix: OdMatrixEntry[];
+}
+
+export interface RouteDelay {
+  route_name: string;
+  start_stop: string;
+  end_stop: string;
+  distance_km: number;
+  scheduled_duration_min: number;
+  estimated_duration_min: number;
+  delay_min: number;
+  avg_congestion_score: number;
+  avg_speed_kph: number;
+  status: "ON_TIME" | "DELAYED" | "SEVERE";
+  label: string;
+}
+
+export interface InfrastructureDeficiency {
+  category: string;
+  count: number;
+  severity_weight: number;
+  deficiency_score: number;
+  affected_stops: string[];
+  recommendation: string;
+}
+
+export interface InfrastructureReport {
+  label: string;
+  categories: InfrastructureDeficiency[];
+}
+
+export interface FleetCamera {
   camera: string;
+  url: string;
+  active: boolean;
+}
+
+export interface FleetEvent {
+  event_id: string;
+  event_type: string;
+  severity: string;
+  confidence: number;
+  created_at: string;
+}
+
+export interface FleetBus {
+  bus_id: string;
+  route_id: string;
+  route_name: string;
+  status: "LIVE" | "STANDBY";
   fps: number;
-  ai_mode?: string;
-  gps_mode?: string;
-  vehicle_counts?: Record<string, number>;
-  unique_tracks?: number;
-  cameras?: CameraStatusInfo[];
+  ai_mode: string;
+  gps_mode: string;
+  latitude: number;
+  longitude: number;
+  vehicle_counts: Record<string, number>;
+  events_today: number;
+  incidents_today: number;
+  cameras: FleetCamera[];
+  recent_events: FleetEvent[];
+}
+
+export interface FleetStatus {
+  generated_at: string;
+  total_buses: number;
+  live_buses: number;
+  cameras_online: number;
+  buses: FleetBus[];
 }
 

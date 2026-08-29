@@ -43,7 +43,6 @@ export default function IncidentDetailPage() {
             <div className="flex justify-between"><span className="text-gray-500">Confidence</span><span className="text-gray-200">{(incident.confidence * 100).toFixed(0)}%</span></div>
             <div className="flex justify-between"><span className="text-gray-500">GPS</span><span className="text-gray-200">{incident.latitude?.toFixed(4)}, {incident.longitude?.toFixed(4)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Time</span><span className="text-gray-200">{new Date(incident.created_at).toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Source</span><span className="text-gray-200">{incident.source || "N/A"}</span></div>
           </div>
         </Card>
 

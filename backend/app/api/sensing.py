@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.api.deps import require_auth
+from backend.app.api.deps import edge_or_user
 from backend.app.database.session import get_db
 from backend.app.models import SensingSession
 
@@ -39,7 +39,7 @@ class SessionUpdate(BaseModel):
 async def start_session(
     payload: SessionStart,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_auth),
+    _actor: str = Depends(edge_or_user),
 ) -> dict:
     existing = await db.execute(
         select(SensingSession).where(SensingSession.session_id == payload.session_id)
@@ -68,7 +68,7 @@ async def update_session(
     session_id: str,
     payload: SessionUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_auth),
+    _actor: str = Depends(edge_or_user),
 ) -> dict:
     result = await db.execute(select(SensingSession).where(SensingSession.session_id == session_id))
     session = result.scalar_one_or_none()
@@ -104,7 +104,7 @@ async def update_session(
 async def close_session(
     session_id: str,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_auth),
+    _actor: str = Depends(edge_or_user),
 ) -> dict:
     result = await db.execute(select(SensingSession).where(SensingSession.session_id == session_id))
     session = result.scalar_one_or_none()

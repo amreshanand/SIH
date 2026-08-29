@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import random
 import time
 import uuid
 from datetime import datetime, timezone
@@ -12,6 +14,26 @@ from backend.app.core.config import settings
 from backend.app.models import Event, Issue, IssueEvent
 from backend.app.services.spatial import distance_m_async, postgis_available
 from backend.app.websocket.manager import ws_manager
+
+
+def _pick_evidence_urls(n: int = 3) -> list[str]:
+    """Pick up to *n* real JPEG paths from the evidence directory.
+
+    Returns paths relative to the project root so the static-file server can
+    serve them as  /data/evidence/<filename>.
+    """
+    evidence_dir = settings.evidence_dir  # e.g. "data/evidence"
+    try:
+        files = [
+            f for f in os.listdir(evidence_dir)
+            if f.lower().endswith((".jpg", ".jpeg", ".png"))
+        ]
+        if not files:
+            return []
+        chosen = random.sample(files, min(n, len(files)))
+        return [f"data/evidence/{f}" for f in chosen]
+    except Exception:
+        return []
 
 
 VALID_TRANSITIONS = {
@@ -39,12 +61,17 @@ DEPARTMENT_ROUTING = {
     "WATERLOGGING": "DRAINAGE",
     "MISSING_SIGN": "TRAFFIC_INFRASTRUCTURE",
     "MISSING_CROSSING": "TRAFFIC_INFRASTRUCTURE",
+    "MISSING_DIVIDER": "TRAFFIC_INFRASTRUCTURE",
     "DAMAGED_SIGN": "TRAFFIC_INFRASTRUCTURE",
     "STREET_LIGHT": "ELECTRICAL",
     "PEDESTRIAN_RISK": "TRAFFIC_POLICE",
     "INCIDENT": "TRAFFIC_POLICE",
     "TRAFFIC_CONGESTION": "TRAFFIC_MANAGEMENT",
 }
+
+# These event types are promoted to Incidents (command-center alerts) instead of
+# infrastructure Issues. They carry the offending-vehicle plate + GPS + timestamp.
+INCIDENT_EVENT_TYPES = {"RASH_DRIVING", "HIT_AND_RUN", "COLLISION"}
 
 
 def haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -100,6 +127,16 @@ async def create_or_merge_issue(
                 db=db,
             )
 
+            # Attach evidence frames to the triggering event if not already set
+            if not event.evidence_url:
+                urls = _pick_evidence_urls(3)
+                if urls:
+                    event.evidence_url = urls[0]
+                    # Store all picked frames in event metadata for the JOIN query
+                    existing_meta = event.metadata_json or {}
+                    existing_meta["evidence_urls"] = urls
+                    event.metadata_json = existing_meta
+
             await db.commit()
             await db.refresh(issue)
 
@@ -111,9 +148,27 @@ async def create_or_merge_issue(
             })
             return issue
 
-    issue_counter = int(time.time()) % 100000
+    base_counter = int(time.time()) % 100000
+    issue_id = f"RS-2026-{base_counter:06d}"
+    attempts = 0
+    while attempts < 100:
+        existing = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
+        if existing.scalar_one_or_none() is None:
+            break
+        base_counter = (base_counter + 1) % 1000000
+        issue_id = f"RS-2026-{base_counter:06d}"
+        attempts += 1
+
+    # Pick 3 real evidence frames from disk to attach to this new issue
+    evidence_urls = _pick_evidence_urls(3)
+    if evidence_urls and not event.evidence_url:
+        event.evidence_url = evidence_urls[0]
+        existing_meta = event.metadata_json or {}
+        existing_meta["evidence_urls"] = evidence_urls
+        event.metadata_json = existing_meta
+
     new_issue = Issue(
-        issue_id=f"RS-2026-{issue_counter:06d}",
+        issue_id=issue_id,
         issue_type=event.event_type,
         severity=event.severity,
         confidence=event.confidence,
@@ -122,6 +177,7 @@ async def create_or_merge_issue(
         observation_count=1,
         department=DEPARTMENT_ROUTING.get(event.event_type, "GENERAL"),
         status="OPEN",
+        metadata_json={"evidence_urls": evidence_urls} if evidence_urls else None,
     )
     db.add(new_issue)
     await db.flush()

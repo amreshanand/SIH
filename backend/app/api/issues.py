@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.deps import require_auth
 from backend.app.database.session import get_db
-from backend.app.models import Issue
+from backend.app.models import Issue, User
 from backend.app.schemas.issue import (
     IssueAssignmentCreate,
     IssueAssignmentResponse,
@@ -24,6 +24,22 @@ from backend.app.websocket.manager import ws_manager
 router = APIRouter(prefix="/issues", tags=["Issues"])
 
 
+async def _resolve_issue(db: AsyncSession, ref: str):
+    """Resolve an issue by its human-readable issue_id OR its UUID id.
+
+    Frontend detail pages may link with either, so accept both to avoid 404s.
+    """
+    import uuid as _uuid
+    q = select(Issue).where(Issue.issue_id == ref)
+    try:
+        ref_uuid = _uuid.UUID(str(ref))
+        q = select(Issue).where((Issue.issue_id == ref) | (Issue.id == ref_uuid))
+    except ValueError:
+        pass
+    result = await db.execute(q.limit(2))
+    return result.scalars().first()
+
+
 @router.get("", response_model=IssueListResponse)
 async def list_issues(
     status: Optional[str] = None,
@@ -31,7 +47,7 @@ async def list_issues(
     severity: Optional[str] = None,
     department: Optional[str] = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(150, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     q = select(Issue)
@@ -62,19 +78,50 @@ async def list_issues(
 
 @router.get("/{issue_id}", response_model=IssueResponse)
 async def get_issue(issue_id: str, db: AsyncSession = Depends(get_db)) -> Issue:
-    result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
-    issue = result.scalar_one_or_none()
+    issue = await _resolve_issue(db, issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail=f"Issue {issue_id} not found")
+
+    from backend.app.models import IssueEvent, Event
+    # Fetch up to 3 distinct evidence frames linked to this issue via events
+    stmt = (
+        select(Event.evidence_url)
+        .join(IssueEvent, IssueEvent.event_id == Event.id)
+        .where(IssueEvent.issue_id == issue.id)
+        .where(Event.evidence_url.is_not(None))
+        .order_by(IssueEvent.created_at)
+        .limit(3)
+    )
+    res = await db.execute(stmt)
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    evidence_urls: list[str] = []
+    for (url,) in res.all():
+        if url not in seen:
+            seen.add(url)
+            evidence_urls.append(url)
+
+    # Supplement (or replace) with evidence stored in issue's metadata_json
+    # This ensures we always show up to 3 real images
+    if issue.metadata_json:
+        stored = issue.metadata_json.get("evidence_urls", [])
+        for u in stored:
+            if u and u not in seen and len(evidence_urls) < 3:
+                seen.add(u)
+                evidence_urls.append(u)
+
+    issue.evidence_urls = evidence_urls
+
     return issue
+
+
 
 
 @router.get("/{issue_id}/timeline")
 async def get_issue_timeline(issue_id: str, db: AsyncSession = Depends(get_db)) -> dict:
     from backend.app.models import IssueAssignment, IssueEvent, VerificationRecord
 
-    result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
-    issue = result.scalar_one_or_none()
+    issue = await _resolve_issue(db, issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail=f"Issue {issue_id} not found")
 
@@ -128,10 +175,9 @@ async def update_issue(
     issue_id: str,
     payload: IssueUpdate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_auth),
+    _user: User = Depends(require_auth),
 ) -> Issue:
-    result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
-    issue = result.scalar_one_or_none()
+    issue = await _resolve_issue(db, issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail=f"Issue {issue_id} not found")
 
@@ -179,12 +225,11 @@ async def assign_issue(
     issue_id: str,
     payload: IssueAssignmentCreate,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_auth),
+    _user: User = Depends(require_auth),
 ) -> "IssueAssignment":
     from backend.app.models import IssueAssignment
 
-    result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
-    issue = result.scalar_one_or_none()
+    issue = await _resolve_issue(db, issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail=f"Issue {issue_id} not found")
 

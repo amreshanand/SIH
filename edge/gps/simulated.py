@@ -19,19 +19,25 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 class SimulatedGPSProvider(GPSProvider):
-    """Follows a route file with time-proportional interpolation and computes a
-    realistic speed (m/s from distance over dt) and heading (from travel
-    direction) instead of hardcoded constants."""
+    """Follows a route file with distance-proportional interpolation.
 
-    def __init__(self, route_file: str, update_interval: float = 1.0) -> None:
+    Advances a cumulative distance along the polyline at a realistic bus speed
+    (~50 km/h) and reports a real instantaneous speed (m/s) and heading computed
+    from the actual travel direction, instead of hardcoded constants.
+    """
+
+    def __init__(self, route_file: str, update_interval: float = 1.0,
+                 speed_mps: float = 13.9) -> None:
         self.route_file = route_file
         self.update_interval = update_interval
+        self.speed_mps = speed_mps
         self._stops: list[dict] = []
-        self._current_index = 0
+        self._cumulative_m: list[float] = []
+        self._total_m = 0.0
+        self._progress_m = 0.0
         self._last_update = 0.0
         self._available = False
-        self._last_stop_time: float | None = None
-        self._smoothed_speed = 0.0
+        self._last_speed = 0.0
 
     @property
     def is_available(self) -> bool:
@@ -49,54 +55,75 @@ class SimulatedGPSProvider(GPSProvider):
                 log.error("[GPS] Route file has invalid/missing coordinates")
                 self._stops = []
                 return
+            self._cumulative_m = [0.0]
+            run = 0.0
+            for i in range(1, len(self._stops)):
+                run += _haversine_m(
+                    self._stops[i - 1]["lat"], self._stops[i - 1]["lon"],
+                    self._stops[i]["lat"], self._stops[i]["lon"],
+                )
+                self._cumulative_m.append(run)
+            self._total_m = run
             self._available = True
             self._last_update = time.time()
-            log.info("[GPS] Simulated GPS loaded: %d stops", len(self._stops))
+            log.info("[GPS] Simulated GPS loaded: %d stops (route %.0f m)",
+                     len(self._stops), self._total_m)
         except Exception as e:
             log.error("[GPS] Failed to load route file: %s", e)
 
+    def _position_at(self, dist_m: float, lat1: float, lon1: float,
+                     lat2: float, lon2: float) -> tuple[float, float]:
+        seg = _haversine_m(lat1, lon1, lat2, lon2)
+        if seg <= 0:
+            return lat2, lon2
+        t = max(0.0, min(1.0, dist_m / seg))
+        lat = lat1 + (lat2 - lat1) * t
+        lon = lon1 + (lon2 - lon1) * t
+        return lat, lon
+
     def get_location(self) -> GPSData | None:
-        if not self._available or not self._stops:
+        if not self._available or not self._stops or self._total_m <= 0:
             return None
 
         now = time.time()
-        dt = now - self._last_update
+        dt = max(0.0, now - self._last_update)
         if dt < self.update_interval:
-            return self._interpolate(0.0 if self._last_update == 0 else dt)
+            dt = 0.0
 
-        self._last_update = now
-        self._current_index = (self._current_index + 1) % len(self._stops)
-        return self._interpolate(dt)
+        if dt > 0:
+            self._progress_m = (self._progress_m + self.speed_mps * dt) % self._total_m
+            self._last_update = now
 
-    def _interpolate(self, dt: float) -> GPSData:
-        stop = self._stops[self._current_index]
-        next_stop = self._stops[(self._current_index + 1) % len(self._stops)]
+        # Find the segment containing the current progress.
+        i = 0
+        while i < len(self._cumulative_m) - 1 and self._cumulative_m[i + 1] < self._progress_m:
+            i += 1
+        seg_start_m = self._cumulative_m[i]
+        seg_end_m = self._cumulative_m[i + 1]
+        stop = self._stops[i]
+        next_stop = self._stops[(i + 1) % len(self._stops)]
 
-        # A travel-speed factor (m/s) calibrated so the full route takes a few
-        # minutes; 0.5 gives a smooth midpoint drift between polls.
-        t = min(1.0, 0.5)
-        lat = stop["lat"] + (next_stop["lat"] - stop["lat"]) * t
-        lon = stop["lon"] + (next_stop["lon"] - stop["lon"]) * t
+        lat, lon = self._position_at(
+            self._progress_m - seg_start_m,
+            stop["lat"], stop["lon"], next_stop["lat"], next_stop["lon"],
+        )
 
-        lat2 = stop["lat"] + (next_stop["lat"] - stop["lat"]) * 1.0
-        lon2 = stop["lon"] + (next_stop["lon"] - stop["lon"]) * 1.0
-        dist = _haversine_m(lat, lon, lat2, lon2)
-        speed = dist / max(dt, 0.01) if dt and dt > 0 else 0.0
-        if dt and dt > 0 and abs(speed) < 100:
-            self._smoothed_speed = self._smoothed_speed * 0.7 + speed * 0.3
+        # Speed travelled since the previous poll.
+        if dt > 0:
+            self._last_speed = self.speed_mps
 
         heading = 0.0
         try:
-            dy = lat2 - lat
-            dx = (lon2 - lon) * math.cos(math.radians(lat))
+            dy = next_stop["lat"] - stop["lat"]
+            dx = (next_stop["lon"] - stop["lon"]) * math.cos(math.radians(lat))
             heading = math.degrees(math.atan2(dx, dy)) % 360.0
         except Exception:
             heading = 0.0
 
         return GPSData(
-            latitude=lat,
-            longitude=lon,
-            speed=round(self._smoothed_speed, 1),
+            latitude=round(lat, 6),
+            longitude=round(lon, 6),
+            speed=round(self._last_speed, 1),
             heading=round(heading, 1),
             source="SIMULATED",
         )

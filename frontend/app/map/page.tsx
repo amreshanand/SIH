@@ -22,6 +22,30 @@ const STATUS_COLORS: Record<string, string> = {
   REOPENED: "#ef4444",
 };
 
+// Snap coordinates to ~11 m so observations of the same spot collapse into one marker.
+const SNAP = 4;
+const snap = (v: number) => Math.round(v * 10 ** SNAP) / 10 ** SNAP;
+const SEV_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
+
+function topSeverity<T extends { severity: string }>(items: T[]): string {
+  for (const s of SEV_ORDER) {
+    if (items.some((i) => i.severity === s)) return s;
+  }
+  return items[0]?.severity || "LOW";
+}
+
+function groupBySpot<T extends { latitude: number; longitude: number }>(items: T[]): { lat: number; lon: number; items: T[] }[] {
+  const groups = new Map<string, { lat: number; lon: number; items: T[] }>();
+  items.forEach((item) => {
+    const lat = snap(item.latitude);
+    const lon = snap(item.longitude);
+    const key = `${lat}|${lon}`;
+    if (!groups.has(key)) groups.set(key, { lat, lon, items: [] });
+    groups.get(key)!.items.push(item);
+  });
+  return [...groups.values()];
+}
+
 export default function MapPage() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
@@ -65,8 +89,8 @@ export default function MapPage() {
   }, []);
 
   const fetchMapData = useCallback(() => {
-    api.getEvents().then((r) => setEvents(r.events)).catch(() => {});
-    api.getIssues().then((r) => setIssues(r.issues)).catch(() => {});
+    api.getEvents({ limit: "200" }).then((r) => setEvents(r.events)).catch(() => {});
+    api.getIssues({ limit: "200" }).then((r) => setIssues(r.issues)).catch(() => {});
     api.getBuses().then(setBuses).catch(() => {});
     api.getBusLocations().then(setBusLocations).catch(() => {});
   }, []);
@@ -96,24 +120,38 @@ export default function MapPage() {
       markersRef.current = [];
 
       if (activeLayer === "events") {
-        events.forEach((e) => {
-          const color = SEVERITY_COLORS[e.severity] || "#888";
+        groupBySpot(events).forEach((g) => {
+          const color = SEVERITY_COLORS[topSeverity(g.items)] || "#888";
+          const count = g.items.length;
+          const html =
+            count === 1
+              ? `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5);"></div>`
+              : `<div style="width:22px;height:22px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;">${count}</div>`;
           const icon = L.divIcon({
             className: "custom-marker",
-            html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5);"></div>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
+            html,
+            iconSize: count === 1 ? [14, 14] : [22, 22],
+            iconAnchor: count === 1 ? [7, 7] : [11, 11],
           });
-          const marker = L.marker([e.latitude, e.longitude], { icon })
+          const title = count === 1 ? `${g.items[0].event_type}` : `${count} events at this location`;
+          const popupRows = g.items
+            .slice(0, 8)
+            .map(
+              (e) => `
+                <div style="font-size:10px;border-top:1px solid #eee;padding-top:3px;margin-top:3px;">
+                  <b>${e.event_type}</b> <span style="color:#888">${e.event_id}</span><br/>
+                  Confidence: ${(e.confidence * 100).toFixed(0)}% · Severity: ${e.severity} · Source: ${e.source}<br/>
+                  <span style="color:#999">${new Date(e.created_at).toLocaleString()}</span>
+                </div>`
+            )
+            .join("");
+          const marker = L.marker([g.lat, g.lon], { icon })
             .addTo(map)
             .bindPopup(`
-              <div style="min-width:180px">
-                <b style="font-size:12px">${e.event_type}</b><br/>
-                <span style="font-size:10px;color:#888">${e.event_id}</span><br/>
-                <span style="font-size:10px">Confidence: ${(e.confidence * 100).toFixed(0)}%</span><br/>
-                <span style="font-size:10px">Severity: ${e.severity}</span><br/>
-                <span style="font-size:10px">Source: ${e.source}</span><br/>
-                <span style="font-size:10px">Time: ${new Date(e.created_at).toLocaleString()}</span>
+              <div style="min-width:200px">
+                <b style="font-size:12px">${title}</b>
+                ${popupRows}
+                ${g.items.length > 8 ? `<div style="font-size:10px;color:#888;margin-top:3px;">… +${g.items.length - 8} more</div>` : ""}
               </div>
             `);
           markersRef.current.push(marker);
@@ -121,24 +159,38 @@ export default function MapPage() {
       }
 
       if (activeLayer === "issues") {
-        issues.forEach((i) => {
-          const color = STATUS_COLORS[i.status] || "#888";
+        groupBySpot(issues).forEach((g) => {
+          const color = STATUS_COLORS[g.items[0].status] || "#888";
+          const count = g.items.length;
+          const html =
+            count === 1
+              ? `<div style="width:18px;height:18px;border-radius:4px;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:bold;">▲</div>`
+              : `<div style="width:22px;height:22px;border-radius:4px;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:bold;">▲ ${count}</div>`;
           const icon = L.divIcon({
             className: "custom-marker",
-            html: `<div style="width:18px;height:18px;border-radius:4px;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:bold;">▲</div>`,
-            iconSize: [18, 18],
-            iconAnchor: [9, 9],
+            html,
+            iconSize: count === 1 ? [18, 18] : [22, 22],
+            iconAnchor: count === 1 ? [9, 9] : [11, 11],
           });
-          const marker = L.marker([i.latitude, i.longitude], { icon })
+          const title = count === 1 ? `${g.items[0].issue_id}` : `${count} issues at this location`;
+          const popupRows = g.items
+            .slice(0, 8)
+            .map(
+              (i) => `
+                <div style="font-size:10px;border-top:1px solid #eee;padding-top:3px;margin-top:3px;">
+                  <b>${i.issue_id}</b> <span style="color:#888">${i.issue_type}</span><br/>
+                  Status: ${i.status} · ${i.department || "N/A"} · Observations: ${i.observation_count}<br/>
+                  <a href="/issues/${i.id}" style="color:#3b82f6">View Details →</a>
+                </div>`
+            )
+            .join("");
+          const marker = L.marker([g.lat, g.lon], { icon })
             .addTo(map)
             .bindPopup(`
               <div style="min-width:200px">
-                <b style="font-size:12px">${i.issue_id}</b><br/>
-                <span style="font-size:10px;color:#888">${i.issue_type}</span><br/>
-                <span style="font-size:10px">Status: ${i.status}</span><br/>
-                <span style="font-size:10px">Dept: ${i.department || "N/A"}</span><br/>
-                <span style="font-size:10px">Observations: ${i.observation_count}</span><br/>
-                <a href="/issues/${i.id}" style="font-size:10px;color:#3b82f6">View Details →</a>
+                <b style="font-size:12px">${title}</b>
+                ${popupRows}
+                ${g.items.length > 8 ? `<div style="font-size:10px;color:#888;margin-top:3px;">… +${g.items.length - 8} more</div>` : ""}
               </div>
             `);
           markersRef.current.push(marker);
@@ -237,6 +289,9 @@ export default function MapPage() {
               <div className="flex items-center gap-2 text-[10px]"><span className="w-3 h-3 rounded-full bg-yellow-500" /> Medium</div>
               <div className="flex items-center gap-2 text-[10px]"><span className="w-3 h-3 rounded-full bg-green-500" /> Low / Resolved</div>
               <div className="flex items-center gap-2 text-[10px]"><span className="w-3 h-3 rounded-full bg-cyan-500" /> Fleet Bus</div>
+              <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-2 pt-2 border-t border-gray-800">
+                Markers at the same spot are merged — a number badge shows how many observations/issues are stacked there.
+              </div>
             </div>
           </Card>
 
@@ -285,15 +340,21 @@ export default function MapPage() {
               <span className="text-xs text-gray-400">Defect Types</span>
             </CardHeader>
             <div className="p-3 space-y-2">
-              {["POTHOLE", "WATERLOGGING", "ROAD_CRACK", "INCIDENT"].map((type) => {
-                const count = events.filter((e) => e.event_type === type).length;
-                return (
+              {Array.from(
+                events.reduce((acc, e) => {
+                  acc.set(e.event_type, (acc.get(e.event_type) || 0) + 1);
+                  return acc;
+                }, new Map<string, number>())
+              )
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8)
+                .map(([type, count]) => (
                   <div key={type} className="flex items-center justify-between text-[10px]">
-                    <span className="text-gray-400">{type.replace("_", " ")}</span>
+                    <span className="text-gray-400">{type.replaceAll("_", " ")}</span>
                     <span className="text-gray-500">{count}</span>
                   </div>
-                );
-              })}
+                ))}
+              {events.length === 0 && <span className="text-[10px] text-gray-600">No defect events yet — run the demo</span>}
             </div>
           </Card>
         </div>
