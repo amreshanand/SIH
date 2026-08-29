@@ -162,7 +162,7 @@ export const api = {
 
   getAuthorities: () => fetchAPI<{ authorities: Array<{ id: string; username: string; department: string | null }> }>("/api/authorities"),
 
-  getStreamStatus: () => fetchAPI<{ running: boolean; source: string; bus_id: string; camera: string; fps: number }>("/api/stream/status"),
+  getStreamStatus: () => fetchAPI<import("../types").StreamStatus>("/api/stream/status"),
 
   getFleet: () => fetchAPI<import("../types").FleetStatus>("/api/stream/fleet"),
 

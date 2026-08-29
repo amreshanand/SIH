@@ -4,6 +4,9 @@ import { useEffect, useState, useMemo } from "react";
 import { api } from "@/lib/api";
 import { Card, CardHeader, Badge } from "@/components/ui/Card";
 import { useWebSocket } from "@/hooks/useWebSocket";
+
+import { StreamStatus, CameraStatusInfo } from "@/types";
+
 import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import Link from "next/link";
 
@@ -29,18 +32,26 @@ interface LiveDetEvent {
   type?: string;
   event_type?: string;
   event_id?: string;
+  camera_id?: string;
+  camera_type?: string;
+  class_name?: string;
+  track_id?: string | number;
   severity?: string;
   confidence?: number;
   timestamp?: number | string;
   created_at?: string;
+  evidence_url?: string;
   metadata?: Record<string, unknown>;
   metadata_json?: Record<string, unknown>;
   issue_id?: string;
 }
 
+type ViewMode = "dual" | "front" | "inside";
+
 export default function LivePage() {
   const [status, setStatus] = useState<StreamStatus | null>(null);
-  const [streamCounts, setStreamCounts] = useState<Record<string, number>>({
+  const [viewMode, setViewMode] = useState<ViewMode>("dual");
+  const [frontCounts, setFrontCounts] = useState<Record<string, number>>({
     car: 0,
     motorcycle: 0,
     bus: 0,
@@ -48,6 +59,8 @@ export default function LivePage() {
     bicycle: 0,
     person: 0,
   });
+  const [insidePassengerCount, setInsidePassengerCount] = useState<number>(0);
+  const [historyEvents, setHistoryEvents] = useState<LiveDetEvent[]>([]);
 
   // Live issue detection alert overlay state
   const ROAD_ISSUE_TYPES = new Set(["POTHOLE", "ROAD_CRACK", "DAMAGED_ROAD", "WATERLOGGING", "MISSING_SIGN", "DAMAGED_SIGN", "MISSING_CROSSING", "MISSING_DIVIDER", "STREET_LIGHT"]);
@@ -100,70 +113,185 @@ export default function LivePage() {
   }, [alertVisible]);
 
   useEffect(() => {
-    const fetchStatus = () => {
-      api.getStreamStatus().then((st) => {
-        const fullStatus = st as StreamStatus;
-        setStatus(fullStatus);
-        if (fullStatus.vehicle_counts) {
-          setStreamCounts((prev) => ({ ...prev, ...fullStatus.vehicle_counts }));
+    // Initial fetch of recent events from backend
+    api.getEvents({ limit: "20" })
+      .then((res) => {
+        if (res.events && res.events.length > 0) {
+          setHistoryEvents(res.events as unknown as LiveDetEvent[]);
         }
-      }).catch(() => {});
+      })
+      .catch(() => {});
+
+    const fetchStatus = () => {
+      api.getStreamStatus()
+        .then((st) => {
+          setStatus(st);
+          if (st.cameras && st.cameras.length > 0) {
+            const front = st.cameras.find((c) => c.camera_type === "OUTSIDE" || c.camera_id.includes("FRONT"));
+            const inside = st.cameras.find((c) => c.camera_type === "INSIDE" || c.camera_id.includes("INSIDE"));
+
+            if (front && front.counts) {
+              setFrontCounts((prev) => ({ ...prev, ...front.counts }));
+            }
+            if (inside && inside.counts) {
+              setInsidePassengerCount(inside.counts.person ?? inside.counts.passenger ?? 0);
+            }
+          } else if (st.vehicle_counts) {
+            setFrontCounts((prev) => ({ ...prev, ...st.vehicle_counts }));
+          }
+        })
+        .catch(() => {});
     };
 
     fetchStatus();
-    api.getTraffic().then((res) => {
-      if (res.traffic && res.traffic.length > 0) {
-        const latest = res.traffic[0] as unknown as { vehicle_distribution?: Record<string, number> };
-        if (latest.vehicle_distribution) {
-          setStreamCounts((prev) => ({ ...prev, ...latest.vehicle_distribution }));
-        }
-      }
-    }).catch(() => {});
-
-    const interval = setInterval(fetchStatus, 2000);
+    const interval = setInterval(fetchStatus, 1500);
     return () => clearInterval(interval);
   }, []);
+
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const frontStreamUrl = `${apiBase}/api/stream/camera?camera_id=BUS-001-CAM-FRONT`;
+  const insideStreamUrl = `${apiBase}/api/stream/camera?camera_id=BUS-001-CAM-INSIDE`;
+
+  const frontCamInfo: CameraStatusInfo | undefined = status?.cameras?.find(
+    (c) => c.camera_type === "OUTSIDE" || c.camera_id.includes("FRONT")
+  );
+  const insideCamInfo: CameraStatusInfo | undefined = status?.cameras?.find(
+    (c) => c.camera_type === "INSIDE" || c.camera_id.includes("INSIDE")
+  );
+
+  const frontFps = frontCamInfo?.fps ?? status?.fps ?? 10.0;
+  const insideFps = insideCamInfo?.fps ?? 10.0;
 
   const isYouTube = Boolean(status?.youtube_live_url);
   const sourceName = isYouTube ? "YouTube Live" : status?.source ? status.source.toUpperCase() : "YOUTUBE";
   const gpsLabel = status?.gps_mode === "phone" ? "PHONE" : "SIMULATED";
 
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Top Header & Telemetry Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Live Fleet AI Monitoring</h1>
-          <p className="text-sm text-gray-500">Real-time YouTube live stream ingested through YOLOv8 object detector & ByteTrack</p>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <h1 className="text-2xl font-bold tracking-tight text-white">BUS-001 LIVE AI COMMAND CENTER</h1>
+          </div>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Dual-Camera Edge Sensing: Front Road Infrastructure (Live) &amp; Inside Cabin Passenger Analytics (Recorded Demo)
+          </p>
         </div>
-        <div className="flex items-center gap-3 text-[11px]">
-          <span className="flex items-center gap-1.5 font-medium px-2.5 py-1 rounded bg-gray-900 border border-gray-800">
-            <span className={`w-2 h-2 rounded-full ${status?.running ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
-            {status?.running ? "STREAM LIVE" : "CONNECTING"}
+
+        {/* Global Telemetry Chips */}
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          {/* Front Cam Live Badge */}
+          <span className="flex items-center gap-1.5 font-medium px-2.5 py-1 rounded bg-gray-900 border border-emerald-500/30 text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            FRONT: LIVE ({frontFps.toFixed(1)} FPS)
           </span>
-          <span className="text-gray-300 bg-gray-900 px-2.5 py-1 rounded border border-gray-800">FPS: {status?.fps?.toFixed(1) || "10.0"}</span>
-          <span className="text-cyan-400 bg-gray-900 px-2.5 py-1 rounded border border-gray-800">Source: {sourceName}</span>
-          <span className="text-amber-400 bg-gray-900 px-2.5 py-1 rounded border border-gray-800">GPS: {gpsLabel}</span>
+
+          {/* Inside Cam Demo Badge */}
+          <span className="flex items-center gap-1.5 font-medium px-2.5 py-1 rounded bg-gray-900 border border-amber-500/30 text-amber-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            CABIN: RECORDED DEMO ({insideFps.toFixed(1)} FPS)
+          </span>
+
+          <span className="text-cyan-400 bg-gray-900 px-2.5 py-1 rounded border border-gray-800">
+            AI: REAL (YOLOv8n)
+          </span>
+          <span className="text-gray-300 bg-gray-900 px-2.5 py-1 rounded border border-gray-800">
+            GPS: SIMULATED
+          </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2">
-          <Card className="overflow-hidden">
-            <CardHeader>
+      {/* Camera Selector Tabs */}
+      <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mr-2">CAMERA VIEW:</span>
+          <button
+            id="btn-dual-view"
+            type="button"
+            onClick={() => setViewMode("dual")}
+            className={`px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-all ${
+              viewMode === "dual"
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-sm"
+                : "bg-gray-900 text-gray-400 border border-gray-800 hover:text-white"
+            }`}
+          >
+            ⊞ DUAL VIEW MATRIX
+          </button>
+          <button
+            id="btn-front-view"
+            type="button"
+            onClick={() => setViewMode("front")}
+            className={`px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-all ${
+              viewMode === "front"
+                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-sm"
+                : "bg-gray-900 text-gray-400 border border-gray-800 hover:text-white"
+            }`}
+          >
+            🚗 FRONT / OUTSIDE ROAD
+          </button>
+          <button
+            id="btn-inside-view"
+            type="button"
+            onClick={() => setViewMode("inside")}
+            className={`px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition-all ${
+              viewMode === "inside"
+                ? "bg-purple-500/20 text-purple-300 border border-purple-500/50 shadow-sm"
+                : "bg-gray-900 text-gray-400 border border-gray-800 hover:text-white"
+            }`}
+          >
+            👥 INSIDE / CABIN CAMERA
+          </button>
+        </div>
+
+        <div className="text-[11px] text-gray-500 font-mono">
+          BUS_ID: <span className="text-gray-300 font-semibold">{status?.bus_id || "BUS-001"}</span>
+        </div>
+      </div>
+
+      {/* Video Feeds Grid */}
+      <div className={`grid gap-4 ${viewMode === "dual" ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
+        {/* CAMERA 1: FRONT ROAD CAMERA */}
+        {(viewMode === "dual" || viewMode === "front") && (
+          <Card className="overflow-hidden border-gray-800 bg-gray-950/80">
+            <CardHeader className="bg-gray-900/60 border-b border-gray-800 py-2.5 px-4">
               <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-3">
-                  <span className={`w-2 h-2 rounded-full ${status?.running ? "bg-emerald-500 animate-pulse" : "bg-gray-600"}`} />
-                  <span className="text-sm font-semibold text-white">{status?.bus_id || "BUS-001"}</span>
-                  <Badge text={status?.camera || "FRONT"} variant="default" />
-                  <Badge text="YOLOv8n" variant="info" />
-                  {status?.running ? <Badge text="AI OVERLAY ACTIVE" variant="success" /> : <Badge text="STANDBY" variant="warning" />}
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-bold text-white tracking-wide">BUS-001-CAM-FRONT</span>
+                  <Badge text="OUTSIDE ROAD" variant="info" />
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    ● LIVE
+                  </span>
                 </div>
-                <span className="text-[10px] text-gray-400 font-mono">
-                  {status?.youtube_live_url ? "YouTube Live Stream" : "Front Camera Feed"}
-                </span>
+                <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono">
+                  <span>YouTube Live Stream</span>
+                  <span className="text-emerald-400 font-bold">{frontFps.toFixed(1)} FPS</span>
+                </div>
               </div>
             </CardHeader>
+
             <div className="bg-black aspect-video relative overflow-hidden flex items-center justify-center">
+
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={frontStreamUrl}
+                alt="Front Road Camera AI Stream"
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = "none";
+                }}
+              />
+
+              {/* HUD Top-Left Badge */}
+              <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md border border-emerald-500/40 px-3 py-1.5 rounded text-[10px] text-gray-200 space-y-0.5 shadow-xl pointer-events-none">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <span className="font-bold text-white">SOURCE: YouTube Live</span>
+
               {status?.running && status.youtube_live_url ? (
                 <>
                   {/* FRONT cam: slight zoom to remove letterbox, slight bottom crop to show road clearly */}
@@ -272,62 +400,195 @@ export default function LivePage() {
                     <p className="text-xs text-gray-400 mt-1">Resolving YouTube live HLS manifest</p>
                   </div>
                 </div>
-              )}
-            </div>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between w-full">
-                <span className="text-xs font-semibold text-white">Live Vehicle Tracking</span>
-                <span className="text-[10px] text-emerald-400 font-mono">Actual Counts</span>
+                <div className="text-gray-300">
+                  BUS: <span className="text-cyan-300 font-mono">BUS-001</span> | CAM: <span className="text-cyan-300">FRONT / OUTSIDE</span>
+                </div>
+                <div className="text-emerald-400">
+                  AI: REAL (YOLOv8n) | GPS: SIMULATED | <span className="text-emerald-300 font-bold">MODE: LIVE</span>
+                </div>
               </div>
-            </CardHeader>
-            <div className="p-3 grid grid-cols-2 gap-2 text-[11px]">
+
+              {/* HUD Top-Right Telemetry Badge */}
+              <div className="absolute top-3 right-3 bg-black/85 backdrop-blur-md border border-cyan-500/40 px-3 py-1.5 rounded text-[10px] text-right text-gray-200 space-y-0.5 shadow-xl pointer-events-none">
+                <div className="text-cyan-300 font-mono font-bold">INFERENCE: 10.0 FPS</div>
+                <div className="text-emerald-400 font-mono font-bold">STREAM: {frontFps.toFixed(1)} FPS</div>
+                <div className="text-gray-400 text-[9px]">TRACKS: {frontCamInfo?.unique_tracks || 0} ACTIVE</div>
+              </div>
+            </div>
+
+            {/* Front Camera Live Stats Bar */}
+            <div className="p-3 bg-gray-900/40 border-t border-gray-800 grid grid-cols-6 gap-2 text-center text-[10px]">
               {[
-                { label: "Cars", key: "car" },
-                { label: "Motorcycles", key: "motorcycle" },
-                { label: "Buses", key: "bus" },
-                { label: "Trucks", key: "truck" },
-                { label: "Bicycles", key: "bicycle" },
-                { label: "People", key: "person" },
-              ].map(({ label, key }) => (
-                <div key={key} className="flex justify-between items-center p-2 rounded bg-gray-900/70 border border-gray-800">
-                  <span className="text-gray-400">{label}</span>
-                  <span className="text-cyan-400 font-mono font-bold text-sm">{streamCounts[key] || 0}</span>
+                { label: "Cars", key: "car", color: "text-emerald-400" },
+                { label: "Motorcycles", key: "motorcycle", color: "text-yellow-400" },
+                { label: "Buses", key: "bus", color: "text-purple-400" },
+                { label: "Trucks", key: "truck", color: "text-orange-400" },
+                { label: "Bicycles", key: "bicycle", color: "text-pink-400" },
+                { label: "Pedestrians", key: "person", color: "text-cyan-400" },
+              ].map(({ label, key, color }) => (
+                <div key={key} className="p-1.5 rounded bg-gray-900/80 border border-gray-800/80">
+                  <div className="text-gray-400 text-[9px] truncate">{label}</div>
+                  <div className={`font-mono font-bold text-sm ${color}`}>{frontCounts[key] || 0}</div>
                 </div>
               ))}
             </div>
           </Card>
+        )}
 
+        {/* CAMERA 2: INSIDE CABIN CAMERA */}
+        {(viewMode === "dual" || viewMode === "inside") && (
+          <Card className="overflow-hidden border-gray-800 bg-gray-950/80">
+            <CardHeader className="bg-gray-900/60 border-b border-gray-800 py-2.5 px-4">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  <span className="text-xs font-bold text-white tracking-wide">BUS-001-CAM-INSIDE</span>
+                  <Badge text="CABIN / INSIDE" variant="default" />
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    RECORDED DEMO
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono">
+                  <span>YouTube Video</span>
+                  <span className="text-amber-300 font-bold">{insideFps.toFixed(1)} FPS</span>
+                </div>
+              </div>
+            </CardHeader>
+
+            <div className="bg-black aspect-video relative overflow-hidden flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={insideStreamUrl}
+                alt="Inside Cabin Camera AI Stream"
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = "none";
+                }}
+              />
+
+              {/* HUD Top-Left Badge */}
+              <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md border border-amber-500/40 px-3 py-1.5 rounded text-[10px] text-gray-200 space-y-0.5 shadow-xl pointer-events-none">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span className="font-bold text-white">SOURCE: YouTube Video</span>
+                </div>
+                <div className="text-gray-300">
+                  BUS: <span className="text-cyan-300 font-mono">BUS-001</span> | CAM: <span className="text-cyan-300">INSIDE / CABIN</span>
+                </div>
+                <div className="text-amber-300">
+                  AI: REAL (YOLOv8n) | GPS: N/A | <span className="font-bold">MODE: RECORDED DEMO</span>
+                </div>
+              </div>
+
+              {/* HUD Top-Right Telemetry Badge */}
+              <div className="absolute top-3 right-3 bg-black/85 backdrop-blur-md border border-purple-500/40 px-3 py-1.5 rounded text-[10px] text-right text-gray-200 space-y-0.5 shadow-xl pointer-events-none">
+                <div className="text-cyan-300 font-mono font-bold">INFERENCE: 10.0 FPS</div>
+                <div className="text-amber-300 font-mono font-bold">STREAM: {insideFps.toFixed(1)} FPS</div>
+                <div className="text-gray-400 text-[9px]">PASSENGERS: {insidePassengerCount} ACTIVE</div>
+              </div>
+            </div>
+
+            {/* Inside Camera Cabin Stats Bar */}
+            <div className="p-3 bg-gray-900/40 border-t border-gray-800 grid grid-cols-3 gap-2 text-center text-[10px]">
+              <div className="p-1.5 rounded bg-gray-900/80 border border-gray-800/80">
+                <div className="text-gray-400 text-[9px]">Active Passengers</div>
+                <div className="font-mono font-bold text-sm text-purple-400">{insidePassengerCount}</div>
+              </div>
+              <div className="p-1.5 rounded bg-gray-900/80 border border-gray-800/80">
+                <div className="text-gray-400 text-[9px]">Cabin Occupancy</div>
+                <div className="font-mono font-bold text-sm text-amber-300">
+                  {insidePassengerCount > 0 ? "OCCUPIED" : "VACANT"}
+                </div>
+              </div>
+              <div className="p-1.5 rounded bg-gray-900/80 border border-gray-800/80">
+                <div className="text-gray-400 text-[9px]">Unique Tracks</div>
+                <div className="font-mono font-bold text-sm text-cyan-400">{insideCamInfo?.unique_tracks || 0}</div>
+              </div>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Detection Feed & Live Analytics Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Real-time AI Detection Stream Table */}
+        <div className="lg:col-span-2">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between w-full">
-                <span className="text-xs font-semibold text-white">AI Detection Feed</span>
-                <span className="text-[10px] text-gray-500">Live stream events</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-xs font-semibold text-white">UNIFIED AI DETECTION FEED</span>
+                </div>
+                <span className="text-[10px] text-gray-500 font-mono">Real-time WebSocket stream (/ws/events)</span>
               </div>
             </CardHeader>
-            <div className="p-3 max-h-[220px] overflow-y-auto space-y-1.5">
+
+            <div className="p-3 max-h-[300px] overflow-y-auto space-y-2">
               {events.length === 0 && (
-                <div className="text-[10px] text-gray-500 text-center py-4">Ingesting live detections from video stream...</div>
+                <div className="text-xs text-gray-500 text-center py-6">
+                  Listening for real-time detections and defect events from bus cameras...
+                </div>
               )}
               {events.map((e, i) => {
                 const meta = e.metadata || e.metadata_json || {};
-                const trackId = meta.track_id ? `#${meta.track_id}` : "";
-                const conf = e.confidence ? `${(e.confidence * 100).toFixed(0)}%` : meta.confidence ? `${(Number(meta.confidence) * 100).toFixed(0)}%` : "";
-                const timeStr = e.created_at ? new Date(e.created_at).toLocaleTimeString() : new Date().toLocaleTimeString();
+                const camId = e.camera_id || String(meta.camera_id || "BUS-001-CAM-FRONT");
+                const isFront = camId.includes("FRONT") || String(meta.camera_type).toUpperCase() === "OUTSIDE";
+                const trackId = e.track_id ? `#${e.track_id}` : meta.track_id ? `#${meta.track_id}` : "";
+                const conf = e.confidence
+                  ? `${(e.confidence * 100).toFixed(0)}%`
+                  : meta.confidence
+                  ? `${(Number(meta.confidence) * 100).toFixed(0)}%`
+                  : "";
+                const timeStr = e.created_at
+                  ? new Date(e.created_at).toLocaleTimeString()
+                  : new Date().toLocaleTimeString();
+                const severity = e.severity || "MEDIUM";
 
                 return (
-                  <div key={i} className="p-2 bg-gray-900/70 rounded border-l-2 text-[10px]" style={{borderLeftColor: e.severity === "CRITICAL" ? "#ef4444" : e.severity === "HIGH" ? "#f97316" : "#eab308"}}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-white uppercase">{e.type || e.event_type} {trackId}</span>
-                      <span className="text-[9px] text-gray-500 font-mono">{timeStr}</span>
+                  <div
+                    key={i}
+                    className="p-2.5 bg-gray-900/80 rounded border-l-4 flex items-center justify-between text-xs transition-all hover:bg-gray-900"
+                    style={{
+                      borderLeftColor:
+                        severity === "CRITICAL"
+                          ? "#ef4444"
+                          : severity === "HIGH"
+                          ? "#f97316"
+                          : severity === "MEDIUM"
+                          ? "#eab308"
+                          : "#3b82f6",
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Camera Badge */}
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          isFront
+                            ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                            : "bg-purple-500/20 text-purple-300 border border-purple-500/40"
+                        }`}
+                      >
+                        {isFront ? "FRONT CAM" : "CABIN CAM"}
+                      </span>
+
+                      {/* Event Class / Track */}
+                      <div>
+                        <span className="font-semibold text-white uppercase">
+                          {e.class_name || e.event_type || e.type} {trackId}
+                        </span>
+                        <div className="text-[10px] text-gray-400">
+                          {e.event_id || "DETECTION"}
+                          {e.evidence_url && (
+                            <span className="ml-2 text-emerald-400 underline">📸 Snapshot Attached</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[9px] text-gray-400 mt-0.5">
-                      <span>{e.event_id || "DET-LIVE"}</span>
-                      <span className="text-emerald-400 font-mono">{conf && `Conf: ${conf}`}</span>
+
+                    <div className="text-right font-mono text-[10px] space-y-0.5">
+                      <div className="text-gray-400">{timeStr}</div>
+                      <div className="text-emerald-400 font-bold">{conf && `Conf: ${conf}`}</div>
                     </div>
                   </div>
                 );
@@ -335,8 +596,6 @@ export default function LivePage() {
             </div>
           </Card>
         </div>
-      </div>
-
       <div className="grid grid-cols-4 gap-4">
         {[
           { key: "REAR", name: "REAR", url: status?.youtube_rear_url },
@@ -489,5 +748,3 @@ export default function LivePage() {
     </div>
   );
 }
-
-
