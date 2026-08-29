@@ -172,3 +172,31 @@ export interface Insights {
   sentences: string[];
 }
 
+export interface CameraStatusInfo {
+  camera_id: string;
+  camera_name: string;
+  camera_type: string;
+  source_mode: string;
+  source_url: string;
+  status: string;
+  fps: number;
+  inference_fps: number;
+  latency_ms: number;
+  counts: Record<string, number>;
+  unique_tracks: number;
+}
+
+export interface StreamStatus {
+  running: boolean;
+  source: string;
+  youtube_live_url?: string;
+  bus_id: string;
+  camera: string;
+  fps: number;
+  ai_mode?: string;
+  gps_mode?: string;
+  vehicle_counts?: Record<string, number>;
+  unique_tracks?: number;
+  cameras?: CameraStatusInfo[];
+}
+

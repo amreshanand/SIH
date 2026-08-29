@@ -36,6 +36,6 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
   return <div className={`bg-gray-900 border border-gray-800 rounded-lg ${className}`}>{children}</div>;
 }
 
-export function CardHeader({ children }: { children: ReactNode }) {
-  return <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">{children}</div>;
+export function CardHeader({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`px-4 py-3 border-b border-gray-800 flex items-center justify-between ${className}`}>{children}</div>;
 }
