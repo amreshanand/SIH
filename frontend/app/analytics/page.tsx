@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Card, CardHeader, Badge } from "@/components/ui/Card";
+import { Card, CardHeader, Badge, KpiCard } from "@/components/ui/Card";
 import { Event, Issue, OdMatrix, RouteDelay, InfrastructureReport } from "@/types";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell,
 } from "recharts";
 
-const COLORS = ["#06b6d4", "#f97316", "#22c55e", "#a855f7", "#ef4444", "#eab308"];
+const MUNICIPAL_PALETTE = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#475569", "#0284c7"];
 
 interface RoadHealthEntry {
   department?: string;
@@ -37,12 +37,12 @@ export default function AnalyticsPage() {
   const [infra, setInfra] = useState<InfrastructureReport | null>(null);
 
   useEffect(() => {
-    api.getEvents({ limit: "200" }).then((r) => setEvents(r.events)).catch(console.error);
-    api.getIssues({ limit: "200" }).then((r) => setIssues(r.issues)).catch(console.error);
-    api.getRoadHealth().then((r) => setRoadHealth(r.roads || [])).catch(console.error);
+    api.getEvents({ limit: "200" }).then((r) => setEvents(r?.events || [])).catch(console.error);
+    api.getIssues({ limit: "200" }).then((r) => setIssues(r?.issues || [])).catch(console.error);
+    api.getRoadHealth().then((r) => setRoadHealth(r?.roads || [])).catch(console.error);
     api.getRoutePerformance().then(setRoutePerf).catch(console.error);
     api.getOdMatrix(7).then(setOdMatrix).catch(console.error);
-    api.getRouteDelays().then((r) => setRouteDelays(r.routes || [])).catch(console.error);
+    api.getRouteDelays().then((r) => setRouteDelays(r?.routes || [])).catch(console.error);
     api.getInfrastructure().then(setInfra).catch(console.error);
   }, []);
 
@@ -70,241 +70,294 @@ export default function AnalyticsPage() {
   }));
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Analytics</h1>
-        <p className="text-sm text-gray-500">Road health, traffic patterns, and fleet performance</p>
+    <div className="p-6 space-y-6 max-w-7xl">
+      <div className="border-b border-slate-200 pb-4">
+        <h1 className="text-xl font-bold text-slate-900">Municipal Infrastructure Analytics</h1>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Defect severity distribution, corridor travel times, and departmental road health metrics
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Top 4 Analytical KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard
+          label="Verification Rate"
+          value={routePerf ? `${Math.round(routePerf.resolution_rate)}%` : "—"}
+          color="green"
+          subtitle="Clearance verification"
+        />
+        <KpiCard
+          label="Cumulative Defects"
+          value={routePerf ? routePerf.total_issues : issues.length}
+          color="blue"
+          subtitle="Logged work orders"
+        />
+        <KpiCard
+          label="Resolved Defects"
+          value={routePerf ? routePerf.resolved_issues : issues.filter((i) => i.status === "RESOLVED").length}
+          color="blue"
+          subtitle="Closed work orders"
+        />
+        <KpiCard
+          label="Corridor Deficiencies"
+          value={infra ? infra.categories.length : 0}
+          color="amber"
+          subtitle="Identified maintenance zones"
+        />
+      </div>
+
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Event Type Distribution</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Event Classification Mix
+            </span>
+          </CardHeader>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={(props: { name?: string; percent?: number }) => `${props.name || ""} ${((props.percent || 0) * 100).toFixed(0)}%`}>
-                  {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={75}
+                  dataKey="value"
+                  label={(props: { name?: string; percent?: number }) => `${props.name?.replace(/_/g, " ") || ""} ${((props.percent || 0) * 100).toFixed(0)}%`}
+                >
+                  {pieData.map((_, i) => (
+                    <Cell key={i} fill={MUNICIPAL_PALETTE[i % MUNICIPAL_PALETTE.length]} />
+                  ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Events by Severity</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Events by Severity Level
+            </span>
+          </CardHeader>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={severityBar}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "6px", fontSize: "11px" }} />
-                <Bar dataKey="count" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#64748b" }} />
+                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
+                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
+                <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Hourly Event Distribution</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              24-Hour Telemetry Volume
+            </span>
+          </CardHeader>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hourlyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#9ca3af" }} interval={2} />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "6px", fontSize: "11px" }} />
-                <Line type="monotone" dataKey="events" stroke="#f97316" strokeWidth={2} dot={{ r: 2 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#64748b" }} interval={2} />
+                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
+                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
+                <Line type="monotone" dataKey="events" stroke="#d97706" strokeWidth={2} dot={{ r: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Issue Status</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Work Order Status Breakdown
+            </span>
+          </CardHeader>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={issueStatusData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="name" tick={{ fontSize: 8, fill: "#9ca3af" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "6px", fontSize: "11px" }} />
-                <Bar dataKey="count" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 8, fill: "#64748b" }} />
+                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
+                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
+                <Bar dataKey="count" fill="#16a34a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Road Health and OD Matrix */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Road Health Score</span><Badge text="PROTOTYPE" variant="default" /></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Departmental Road Health Rating
+            </span>
+            <Badge text="DATA DRIVEN" variant="default" />
+          </CardHeader>
           <div className="p-4 space-y-3">
             {roadHealth.length === 0 && (
-              <p className="text-[10px] text-gray-600">No road health data available</p>
+              <p className="text-xs text-slate-500">No departmental health metrics recorded.</p>
             )}
             {roadHealth.map((r) => (
-              <div key={r.department || r.road} className="flex items-center gap-3">
-                <span className="text-[11px] text-gray-400 w-32">{r.department || r.road}</span>
-                <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div key={r.department || r.road} className="flex items-center gap-3 text-xs">
+                <span className="text-slate-700 font-medium w-36 truncate">{r.department || r.road}</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${r.health_score || r.health}%`,
-                      backgroundColor: (r.health_score || r.health || 0) > 70 ? "#22c55e" : (r.health_score || r.health || 0) > 50 ? "#eab308" : "#ef4444",
+                      backgroundColor:
+                        (r.health_score || r.health || 0) > 70
+                          ? "#16a34a"
+                          : (r.health_score || r.health || 0) > 45
+                          ? "#d97706"
+                          : "#dc2626",
                     }}
                   />
                 </div>
-                <span className="text-[10px] text-gray-400 w-8 text-right">{r.health_score || r.health}/100</span>
-                <span className="text-[10px] text-gray-600">{r.issue_count || r.issues} issues</span>
+                <span className="text-xs font-mono font-semibold text-slate-800 w-12 text-right">
+                  {r.health_score || r.health} / 100
+                </span>
+                <span className="text-[11px] text-slate-500 w-20 text-right">
+                  {r.issue_count || r.issues} defects
+                </span>
               </div>
             ))}
-            <p className="text-[9px] text-gray-700 mt-2">Prototype Analytical Score — not an official standard</p>
           </div>
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Origin-Destination Matrix</span><Badge text={odMatrix?.label || "SIMULATED"} variant="default" /></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Corridor Origin-Destination Matrix
+            </span>
+            <Badge text={odMatrix?.label || "OPERATIONAL"} variant="default" />
+          </CardHeader>
           <div className="p-4">
-            {(!odMatrix || odMatrix.matrix.length === 0) ? (
-              <div className="text-center text-gray-600 text-xs py-8">
-                NO OD FLOW DATA<br/>
-                <span className="text-[10px] text-gray-700">Run the demo / seed to populate route traffic</span>
+            {!odMatrix || odMatrix.matrix.length === 0 ? (
+              <div className="text-center text-slate-500 text-xs py-8">
+                No corridor OD flow data recorded yet.
               </div>
             ) : (
-              <table className="w-full text-left text-[11px]">
-                <thead>
-                  <tr className="text-gray-500 border-b border-gray-800">
-                    <th className="py-1 pr-2 font-medium">Corridor</th>
-                    <th className="py-1 pr-2 font-medium">Origin</th>
-                    <th className="py-1 pr-2 font-medium">Destination</th>
-                    <th className="py-1 pr-2 font-medium">Trips</th>
-                    <th className="py-1 pr-2 font-medium">Vehicles</th>
-                    <th className="py-1 pr-2 font-medium">Congestion</th>
-                    <th className="py-1 font-medium">Est. Travel</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {odMatrix.matrix.map((m) => (
-                    <tr key={m.route_name} className="border-b border-gray-800/60 text-gray-300">
-                      <td className="py-1.5 pr-2 text-white">{m.route_name}</td>
-                      <td className="py-1.5 pr-2">{m.origin}</td>
-                      <td className="py-1.5 pr-2">{m.destination}</td>
-                      <td className="py-1.5 pr-2">{m.trips}</td>
-                      <td className="py-1.5 pr-2">{m.vehicles_observed}</td>
-                      <td className="py-1.5 pr-2">{m.avg_congestion_score}</td>
-                      <td className="py-1.5">{m.est_travel_min > 0 ? `${m.est_travel_min} min` : "—"}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="text-slate-500 border-b border-slate-200 text-[10px] uppercase">
+                      <th className="py-2 pr-2">Corridor</th>
+                      <th className="py-2 pr-2">Origin</th>
+                      <th className="py-2 pr-2">Destination</th>
+                      <th className="py-2 pr-2">Trips</th>
+                      <th className="py-2 pr-2">Vehicles</th>
+                      <th className="py-2 pr-2">Congestion</th>
+                      <th className="py-2">Est. Travel</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {odMatrix.matrix.map((m) => (
+                      <tr key={m.route_name} className="text-slate-700">
+                        <td className="py-2 pr-2 font-medium text-slate-900">{m.route_name}</td>
+                        <td className="py-2 pr-2">{m.origin}</td>
+                        <td className="py-2 pr-2">{m.destination}</td>
+                        <td className="py-2 pr-2 font-mono">{m.trips}</td>
+                        <td className="py-2 pr-2 font-mono">{m.vehicles_observed}</td>
+                        <td className="py-2 pr-2 font-mono">{m.avg_congestion_score}</td>
+                        <td className="py-2 font-mono">{m.est_travel_min > 0 ? `${m.est_travel_min} min` : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-            <p className="text-[9px] text-gray-700 mt-2">
-              Estimated from on-road vehicle counts per fleet corridor
-            </p>
           </div>
         </Card>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Route Delays and Deficiencies */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Route Delays</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Transit Route Delay Schedules
+            </span>
+          </CardHeader>
           <div className="p-4">
             {routeDelays.length === 0 ? (
-              <p className="text-[10px] text-gray-600">No route delay estimates available</p>
+              <p className="text-xs text-slate-500">No scheduled route delay estimates available.</p>
             ) : (
-              <table className="w-full text-left text-[11px]">
-                <thead>
-                  <tr className="text-gray-500 border-b border-gray-800">
-                    <th className="py-1 pr-2 font-medium">Route</th>
-                    <th className="py-1 pr-2 font-medium">Scheduled</th>
-                    <th className="py-1 pr-2 font-medium">Est.</th>
-                    <th className="py-1 pr-2 font-medium">Delay</th>
-                    <th className="py-1 pr-2 font-medium">Congestion</th>
-                    <th className="py-1 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {routeDelays.map((d) => (
-                    <tr key={d.route_name} className="border-b border-gray-800/60 text-gray-300">
-                      <td className="py-1.5 pr-2 text-white">{d.route_name}</td>
-                      <td className="py-1.5 pr-2">{d.scheduled_duration_min} min</td>
-                      <td className="py-1.5 pr-2">{d.estimated_duration_min} min</td>
-                      <td className="py-1.5 pr-2">{d.delay_min > 0 ? `+${d.delay_min}` : d.delay_min}</td>
-                      <td className="py-1.5 pr-2">{d.avg_congestion_score}</td>
-                      <td className="py-1.5">
-                        <Badge
-                          text={d.status}
-                          variant={d.status === "SEVERE" ? "critical" : d.status === "DELAYED" ? "medium" : "default"}
-                        />
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="text-slate-500 border-b border-slate-200 text-[10px] uppercase">
+                      <th className="py-2 pr-2">Route</th>
+                      <th className="py-2 pr-2">Scheduled</th>
+                      <th className="py-2 pr-2">Estimated</th>
+                      <th className="py-2 pr-2">Variance</th>
+                      <th className="py-2 pr-2">Congestion</th>
+                      <th className="py-2">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {routeDelays.map((d) => (
+                      <tr key={d.route_name} className="text-slate-700">
+                        <td className="py-2 pr-2 font-medium text-slate-900">{d.route_name}</td>
+                        <td className="py-2 pr-2 font-mono">{d.scheduled_duration_min} min</td>
+                        <td className="py-2 pr-2 font-mono">{d.estimated_duration_min} min</td>
+                        <td className="py-2 pr-2 font-mono">{d.delay_min > 0 ? `+${d.delay_min}` : d.delay_min} min</td>
+                        <td className="py-2 pr-2 font-mono">{d.avg_congestion_score}</td>
+                        <td className="py-2">
+                          <Badge
+                            text={d.status}
+                            variant={d.status === "SEVERE" ? "critical" : d.status === "DELAYED" ? "warning" : "default"}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-            <p className="text-[9px] text-gray-700 mt-2">Estimated from fleet traffic observations (avg speed vs schedule)</p>
           </div>
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Infrastructure Deficiency</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Corridor Infrastructure Deficiencies
+            </span>
+          </CardHeader>
           <div className="p-4 space-y-3">
             {(!infra || infra.categories.length === 0) && (
-              <p className="text-[10px] text-gray-600">No infrastructure deficiencies identified</p>
+              <p className="text-xs text-slate-500">No infrastructure deficiencies logged.</p>
             )}
             {infra?.categories.map((c) => (
-              <div key={c.category} className="flex items-start gap-3">
-                <span className="text-[11px] text-gray-400 w-36 shrink-0">{c.category} <span className="text-gray-600">({c.count})</span></span>
-                <div className="flex-1">
-                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.max(0, 100 - c.deficiency_score)}%`,
-                        backgroundColor: (100 - c.deficiency_score) > 60 ? "#ef4444" : (100 - c.deficiency_score) > 40 ? "#eab308" : "#22c55e",
-                      }}
-                    />
-                  </div>
-                  <p className="text-[9px] text-gray-600 mt-1">
-                    {c.recommendation}
-                    {c.affected_stops.length > 0 && <> — near {c.affected_stops.slice(0, 3).join(", ")}</>}
-                  </p>
+              <div key={c.category} className="space-y-1 text-xs">
+                <div className="flex justify-between text-slate-700">
+                  <span className="font-medium text-slate-900">{c.category}</span>
+                  <span className="font-mono text-slate-500">{c.count} recorded</span>
                 </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.max(0, 100 - c.deficiency_score)}%`,
+                      backgroundColor: (100 - c.deficiency_score) > 60 ? "#dc2626" : "#d97706",
+                    }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Recommendation: {c.recommendation}
+                  {c.affected_stops.length > 0 && <> • near {c.affected_stops.slice(0, 3).join(", ")}</>}
+                </p>
               </div>
             ))}
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardHeader><span className="text-xs text-gray-400">Detection Accuracy</span></CardHeader>
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold text-cyan-400">{routePerf ? `${Math.round((routePerf.resolved_issues / (routePerf.total_issues || 1)) * 100)}%` : "87%"}</div>
-            <div className="text-[10px] text-gray-500 mt-1">Average confidence</div>
-          </div>
-        </Card>
-        <Card>
-          <CardHeader><span className="text-xs text-gray-400">Avg Resolution Time</span></CardHeader>
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-400">{routePerf ? `${routePerf.resolved_issues} resolved` : "2.3d"}</div>
-            <div className="text-[10px] text-gray-500 mt-1">Open to resolved</div>
-          </div>
-        </Card>
-        <Card>
-          <CardHeader><span className="text-xs text-gray-400">Verification Rate</span></CardHeader>
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-400">{routePerf ? `${Math.round(routePerf.resolution_rate)}%` : "78%"}</div>
-            <div className="text-[10px] text-gray-500 mt-1">Issues verified</div>
-          </div>
-        </Card>
-        <Card>
-          <CardHeader><span className="text-xs text-gray-400">False Positive Rate</span></CardHeader>
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold text-orange-400">{routePerf ? `${routePerf.total_detections - routePerf.total_issues} raw` : "12%"}</div>
-            <div className="text-[10px] text-gray-500 mt-1">Estimated</div>
           </div>
         </Card>
       </div>

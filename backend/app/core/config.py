@@ -40,24 +40,42 @@ class Settings(BaseSettings):
     # Edge
     edge_api_key: str = "urbansense-edge-key-change-me"
 
-    # Edge / AI capability modes (single source of truth mirrored in .env)
-    # These are REPORTED to the frontend so it can label data truthfully.
-    model_mode: str = "mock"          # real | mock
-    gps_mode: str = "simulated"       # phone | simulated
+    # Edge / AI capability modes (single source of truth mirrored in .env).
+    # UrbanSense is a REAL-inference platform: there is no mock detection mode.
+    # These fields are REPORTED to the frontend so it can label data truthfully.
+    gps_mode: str = "phone"           # phone | nmea | simulated
     yolo_model_path: str = "models/yolov8n.pt"
     road_damage_model_path: str = "models/road_damage.pt"
-    ocr_provider: str = "mock"        # paddle | easyocr | mock
+    ocr_provider: str = "off"         # paddle | easyocr | off
     ocr_enabled: bool = False
-    video_source: str = "phone"       # phone | webcam | file | mock
+    video_source: str = "phone"       # phone | webcam | file | youtube
+    gps_allow_simulated_fallback: bool = True
+    rash_driving_enabled: bool = True
     bus_id: str = "BUS-001"
     camera_position: str = "FRONT"    # FRONT | REAR | LEFT | RIGHT | CABIN
-    allow_mock_fallback: bool = True
+    # GPS NMEA receiver settings.
+    gps_nmea_device: str = "/dev/ttyUSB0"
+    gps_nmea_baudrate: int = 9600
+    gps_nmea_host: str = ""
+    gps_nmea_port: int | None = None
     # URL of the YouTube live stream the edge pipeline embeds (youtube video source).
     youtube_live_url: str = ""
     youtube_rear_url: str = ""
     youtube_left_url: str = ""
     youtube_right_url: str = ""
     youtube_cabin_url: str = ""
+
+    # Per-camera video configuration surfaced to the Live Command Center.
+    front_camera_id: str = "BUS-001-CAM-FRONT"
+    front_camera_name: str = "Front Road Camera"
+    front_camera_type: str = "OUTSIDE"
+    front_stream_url: str = ""
+    front_source_mode: str = "LIVE"
+    inside_camera_id: str = "BUS-001-CAM-INSIDE"
+    inside_camera_name: str = "Inside Cabin Camera"
+    inside_camera_type: str = "INSIDE"
+    inside_stream_url: str = ""
+    inside_source_mode: str = "RECORDED_DEMO"
 
     # Rate limiting
     login_rate_limit_per_minute: int = 5

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -11,6 +11,14 @@ class BusCreate(BaseModel):
     bus_number: str
     route_id: Optional[uuid.UUID] = None
     status: str = "ACTIVE"
+
+
+class TelemetryCreate(BaseModel):
+    latitude: float
+    longitude: float
+    speed: Optional[float] = None
+    heading: Optional[float] = None
+    timestamp: Optional[str] = None
 
 
 class BusResponse(BaseModel):
@@ -52,7 +60,7 @@ class RouteCreate(BaseModel):
     route_name: str
     start_stop: str
     end_stop: str
-    stops: Optional[dict] = None
+    stops: Optional[Any] = None
     distance_km: Optional[float] = None
     scheduled_duration_min: Optional[int] = None
 
@@ -62,7 +70,7 @@ class RouteResponse(BaseModel):
     route_name: str
     start_stop: str
     end_stop: str
-    stops: Optional[dict] = None
+    stops: Optional[Any] = None
     distance_km: Optional[float] = None
     scheduled_duration_min: Optional[int] = None
     created_at: datetime

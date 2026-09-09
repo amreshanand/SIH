@@ -1,6 +1,21 @@
-# Heavy ML dependencies — install separately after base requirements
+# Heavy ML dependencies for the REAL UrbanSense edge inference pipeline.
+# Install after the base requirements (edge/requirements.txt):
+#   pip install -r edge/requirements.txt -r edge/requirements-ml.txt
+#
+# These are required for production REAL inference (no simulations exist).
+# CPU-only builds work out of the box; for GPU, install the matching torch
+# wheel for your CUDA version first (see https://pytorch.org).
+
 ultralytics>=8.1.0,<9.0.0
-# paddleocr>=2.7.0       # uncomment for real OCR
-# easyocr>=1.7.0         # alternative OCR
-# torch>=2.1.0           # required by ultralytics
-# torchvision>=0.16.0    # required by ultralytics
+torch>=2.1.0
+torchvision>=0.16.0
+
+# Multi-object tracking (ByteTrack). Several compatible packages exist; the
+# pipeline auto-falls back to a stable-IoU matcher if none is importable, so
+# tracking IDs persist regardless.
+# bytetrack  # (optional but recommended for production)
+
+# Real license-plate OCR. Install ONE of the following (OCR_ENABLED=true +
+# OCR_PROVIDER=paddle|easyocr) to enable plate reading on incidents.
+paddleocr>=2.7.0
+# easyocr>=1.7.0   # alternative real OCR backend

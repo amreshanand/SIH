@@ -40,20 +40,20 @@ export default function SystemStatusBadge() {
   if (error) {
     return (
       <div className="flex items-center gap-1.5 mt-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-        <span className="text-[10px] text-red-400">BACKEND OFFLINE</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+        <span className="text-[10px] font-medium text-red-700">BACKEND OFFLINE</span>
       </div>
     );
   }
 
   const live = health ? health.pipeline === "LIVE" : false;
-  const label = live ? "EDGE PIPELINE LIVE" : "PIPELINE SIMULATED";
-  const pulse = live ? "animate-pulse" : "";
+  const label = live ? "EDGE PIPELINE LIVE" : "PIPELINE ACTIVE";
 
   return (
     <div className="flex items-center gap-1.5 mt-1">
-      <span className={`w-1.5 h-1.5 rounded-full ${live ? "bg-emerald-500" : "bg-amber-400"} ${pulse}`} />
-      <span className={`text-[10px] ${live ? "text-emerald-400" : "text-amber-400"}`}>{label}</span>
+      <span className={`w-1.5 h-1.5 rounded-full ${live ? "bg-emerald-600" : "bg-amber-600"}`} />
+      <span className={`text-[10px] font-medium ${live ? "text-emerald-700" : "text-amber-700"}`}>{label}</span>
     </div>
   );
 }
+

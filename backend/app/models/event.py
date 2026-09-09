@@ -61,11 +61,16 @@ class Event(BaseModel, TimestampMixin):
     status: Mapped[str] = mapped_column(
         String(20), default=EventStatus.ACTIVE.value, nullable=False
     )
+    # Administrative/spatial enrichment for analytics + clustering.
+    ward: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    gps_accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    track_id: Mapped[int | None] = mapped_column(nullable=True)
+    track_age_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    consecutive_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fused_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    road_overlap_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     bus: Mapped["Bus"] = relationship("Bus", back_populates="events")
     camera: Mapped["Camera | None"] = relationship("Camera")
 
-    # PostgreSQL spatial column added via raw DDL in migration
-    __table_args__ = (
-        {"schema": None},
-    )
+    __table_args__ = {"schema": None}

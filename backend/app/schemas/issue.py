@@ -21,6 +21,13 @@ class IssueResponse(BaseModel):
     affected_road: Optional[str] = None
     department: Optional[str] = None
     status: str
+    ward: Optional[str] = None
+    consensus_level: Optional[str] = "DETECTED"
+    fused_confidence_score: Optional[float] = 0.0
+    unique_bus_count: Optional[int] = 1
+    distinct_buses_observed: Optional[list[str]] = []
+    road_mask_overlap_ratio: Optional[float] = None
+    track_age_frames: Optional[int] = None
     metadata_json: Optional[dict[str, Any]] = None
     evidence_urls: Optional[list[str]] = []
     created_at: datetime

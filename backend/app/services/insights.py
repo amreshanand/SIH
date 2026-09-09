@@ -15,6 +15,9 @@ from backend.app.models import Event, Issue, TrafficRecord, VerificationRecord, 
 
 
 SEVERITY_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+ACTIVE_ISSUE_STATUSES = [
+    "OPEN", "DETECTED", "CONFIRMED", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"
+]
 
 
 async def _since(db: AsyncSession, days: int) -> datetime:
@@ -46,7 +49,7 @@ async def issue_trend(db: AsyncSession, days: int = 7) -> list[dict]:
 async def severity_distribution(db: AsyncSession) -> dict:
     rows = await db.execute(
         select(Issue.severity, func.count(Issue.id))
-        .where(Issue.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"]))
+        .where(Issue.status.in_(ACTIVE_ISSUE_STATUSES))
         .group_by(Issue.severity)
     )
     return {sev: c for sev, c in rows.all()}
@@ -58,7 +61,7 @@ async def resolution_metrics(db: AsyncSession) -> dict:
     )).scalar() or 0
     active = (await db.execute(
         select(func.count(Issue.id)).where(
-            Issue.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"])
+            Issue.status.in_(ACTIVE_ISSUE_STATUSES)
         )
     )).scalar() or 0
 
@@ -113,7 +116,7 @@ async def verification_metrics(db: AsyncSession) -> dict:
 async def road_health(db: AsyncSession) -> list[dict]:
     rows = await db.execute(
         select(Issue.department, func.count(Issue.id))
-        .where(Issue.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "REOPENED"]))
+        .where(Issue.status.in_(ACTIVE_ISSUE_STATUSES))
         .group_by(Issue.department)
     )
     out = []
@@ -161,7 +164,7 @@ async def issue_hotspots(db: AsyncSession, radius_m: int = 200) -> list[dict]:
     """
     rows = await db.execute(
         select(Issue.latitude, Issue.longitude, Issue.issue_type)
-        .where(Issue.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"]))
+        .where(Issue.status.in_(ACTIVE_ISSUE_STATUSES))
     )
     bins: dict[tuple, dict] = {}
     step = radius_m / 111000.0
@@ -344,7 +347,7 @@ async def infrastructure_health(db: AsyncSession) -> dict:
     """
     rows = (await db.execute(
         select(Issue).where(
-            Issue.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "REOPENED"])
+            Issue.status.in_(ACTIVE_ISSUE_STATUSES)
         )
     )).scalars().all()
 

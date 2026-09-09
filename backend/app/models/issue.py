@@ -42,6 +42,13 @@ class Issue(BaseModel, TimestampMixin):
         String(30), default=IssueStatus.OPEN.value, nullable=False, index=True
     )
     metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    ward: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    consensus_level: Mapped[str | None] = mapped_column(String(30), default="DETECTED", nullable=True, index=True)
+    fused_confidence_score: Mapped[float | None] = mapped_column(Float, default=0.0, nullable=True)
+    unique_bus_count: Mapped[int | None] = mapped_column(Integer, default=1, nullable=True)
+    distinct_buses_observed: Mapped[list | None] = mapped_column(JSONB, default=list, nullable=True)
+    road_mask_overlap_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    track_age_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class IssueEvent(BaseModel):
@@ -69,3 +76,28 @@ class IssueAssignment(BaseModel, TimestampMixin):
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="ASSIGNED", nullable=False)
+
+
+class IssueResolution(BaseModel):
+    """Immutable append-only record of the issue resolution lifecycle.
+
+    Each write captures one transition (assignment, status change, resolution,
+    reopen) so an authority's full resolution history can be replayed for the
+    "Authority Performance" and audit requirements."
+    """
+
+    __tablename__ = "issue_resolutions"
+
+    issue_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("issues.id"), nullable=False, index=True
+    )
+    authority_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    from_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )

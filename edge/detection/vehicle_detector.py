@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-import torch
 try:
     import torch
     _orig_load = torch.load

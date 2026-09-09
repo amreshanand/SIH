@@ -47,11 +47,18 @@ data/evidence/*.png
 !data/demo/.gitkeep
 
 # Models (large files)
+*.pt
+*.onnx
+*.weights
 models/*.pt
 models/*.onnx
 models/*.weights
+models/runs/
 !models/.gitkeep
 !models/README.md
+
+# Scratch
+scratch/
 
 # Logs
 *.log
@@ -63,3 +70,4 @@ logs/
 
 # Docker
 docker-compose.override.yml
+

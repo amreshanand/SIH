@@ -1,0 +1,23 @@
+{
+  "timestamp": 1788896338.9340968,
+  "video_file": "rad_front.mp4",
+  "total_frames": 205,
+  "processing_time_sec": 22.66,
+  "throughput_fps": 9.05,
+  "pipeline_stages": {
+    "1_raw_detections": 138,
+    "2_road_surface_passed": 103,
+    "3_unique_tracked_objects": 54,
+    "4_temporal_validated_tracks": 7,
+    "5_geometry_area_passed": 7,
+    "6_final_dispatched_issues": 7
+  },
+  "duplicate_reduction_pct": 94.93,
+  "false_positive_suppressions": {
+    "outside_road_surface": 35,
+    "area_too_small_speckle": 0,
+    "area_oversized_shadow": 0,
+    "fleeting_temporal_transient": 47,
+    "negative_class_suppression": 0
+  }
+}

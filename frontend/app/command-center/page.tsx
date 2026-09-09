@@ -31,11 +31,12 @@ const CAM_STYLE: Record<string, CSSProperties> = {
   },
 };
 
-const TILE_LABELS: Record<string, string> = {
-  REAR: "REAR VIEW",
-  LEFT: "LEFT SIDE",
-  RIGHT: "RIGHT SIDE",
-  CABIN: "CCTV CABIN",
+const TILE_DESCRIPTIONS: Record<string, { title: string; subtitle: string; isDerived: boolean }> = {
+  FRONT: { title: "FRONT SENSOR", subtitle: "Primary Optical Feed", isDerived: false },
+  REAR: { title: "REAR VIEW", subtitle: "Derived Perspective (Simulated)", isDerived: true },
+  LEFT: { title: "LEFT FLANK", subtitle: "Derived Perspective (Simulated)", isDerived: true },
+  RIGHT: { title: "RIGHT FLANK", subtitle: "Derived Perspective (Simulated)", isDerived: true },
+  CABIN: { title: "CABIN INTERIOR", subtitle: "Derived Perspective (Simulated)", isDerived: true },
 };
 
 const ALERT_TYPES = new Set([
@@ -57,9 +58,9 @@ const VEHICLE_KEYS = [
   { label: "Cars", key: "car" },
   { label: "Motorcycles", key: "motorcycle" },
   { label: "Buses", key: "bus" },
-  { label: "Trucks", key: "truck" },
+  { label: "Commercial Trucks", key: "truck" },
   { label: "Bicycles", key: "bicycle" },
-  { label: "People", key: "person" },
+  { label: "Pedestrians", key: "person" },
 ];
 
 const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
@@ -76,13 +77,17 @@ function fmtTime(iso: string) {
 function CameraFrame({ bus, camera }: { bus: FleetBus; camera: string }) {
   const cam = bus.cameras.find((c) => c.camera === camera);
   const active = Boolean(cam?.url);
+  const tileInfo = TILE_DESCRIPTIONS[camera] || { title: camera, subtitle: "Auxiliary Feed", isDerived: false };
 
   if (!cam || !active) {
     return (
-      <div className="bg-black aspect-video relative overflow-hidden flex items-center justify-center">
+      <div className="bg-slate-900 aspect-video relative overflow-hidden flex items-center justify-center border border-slate-800">
         <div className="text-center p-4">
-          <div className="text-2xl mb-1 opacity-60">🛰</div>
-          <span className="text-[10px] text-gray-500 font-mono">FEED STANDBY — CAM OFFLINE</span>
+          <div className="w-7 h-7 mx-auto mb-2 rounded-full border border-slate-700 flex items-center justify-center text-slate-400 text-xs font-mono">
+            !
+          </div>
+          <span className="text-xs text-slate-400 font-medium">CAMERA FEED OFFLINE</span>
+          <p className="text-[10px] text-slate-500 mt-0.5">{tileInfo.subtitle}</p>
         </div>
       </div>
     );
@@ -90,52 +95,48 @@ function CameraFrame({ bus, camera }: { bus: FleetBus; camera: string }) {
 
   if (camera === "FRONT") {
     return (
-      <div className="bg-black aspect-video relative overflow-hidden flex items-center justify-center">
+      <div className="bg-black aspect-video relative overflow-hidden border border-slate-800">
         <iframe
-          className="w-full h-full object-cover"
-          style={{ transform: "scale(1.12) translateY(4%)", transformOrigin: "center bottom", filter: "contrast(1.08) saturate(1.1)" }}
+          className="absolute inset-0 w-full h-full border-0 object-cover"
           src={getYouTubeEmbedUrl(cam.url)}
           title={`${bus.bus_id} FRONT camera`}
-          frameBorder="0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
         />
-        <div className="absolute top-3 left-3 bg-black/85 backdrop-blur-md border border-emerald-500/40 px-3 py-2 rounded text-[10px] text-gray-200 space-y-0.5 shadow-xl pointer-events-none">
+        <div className="absolute top-3 left-3 bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded text-[11px] text-white shadow-md pointer-events-none">
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-            <span className="font-semibold text-white">SOURCE: LINKED LIVE FEED</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="font-semibold">{tileInfo.title}</span>
+            <span className="text-[10px] text-slate-300 font-mono">({bus.bus_id})</span>
           </div>
-          <div className="text-gray-300">
-            BUS: <span className="text-cyan-300 font-mono">{bus.bus_id}</span> | CAM: <span className="text-cyan-300">FRONT</span>
+          <div className="text-slate-300 text-[10px] mt-0.5">
+            AI Pipeline: {bus.ai_mode} · GPS Sync: {bus.gps_mode}
           </div>
-          <div className="text-emerald-400">AI: {bus.ai_mode} | GPS: {bus.gps_mode}</div>
         </div>
-        <div className="absolute top-3 right-3 bg-black/85 backdrop-blur-md border border-cyan-500/40 px-3 py-2 rounded text-[10px] text-right text-gray-200 space-y-0.5 shadow-xl pointer-events-none">
-          <div className="text-emerald-400 font-mono">STREAM: {bus.fps.toFixed(1)} FPS</div>
-          <div className="text-cyan-300 font-mono">{bus.latitude.toFixed(5)}°N</div>
-          <div className="text-cyan-300 font-mono">{bus.longitude.toFixed(5)}°E</div>
+        <div className="absolute top-3 right-3 bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded text-[11px] text-right text-white shadow-md pointer-events-none font-mono">
+          <div className="text-emerald-400 font-semibold">{bus.fps.toFixed(1)} FPS</div>
+          <div className="text-slate-300 text-[10px]">{bus.latitude.toFixed(5)}°N, {bus.longitude.toFixed(5)}°E</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-black aspect-video relative overflow-hidden flex items-center justify-center">
+    <div className="bg-black aspect-video relative overflow-hidden border border-slate-800">
       <iframe
-        className="w-full h-full"
+        className="absolute inset-0 w-full h-full border-0 object-cover"
         style={CAM_STYLE[camera]}
         src={getYouTubeEmbedUrl(cam.url)}
         title={`${bus.bus_id} ${camera} camera`}
-        frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
       />
-      <div className="absolute top-2 left-2 bg-black/80 backdrop-blur px-2 py-1 rounded text-[8px] text-gray-200 font-mono border border-gray-700 flex items-center gap-1 pointer-events-none">
-        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-        {TILE_LABELS[camera] || camera}
+      <div className="absolute top-2 left-2 bg-slate-900/90 px-2 py-1 rounded text-[10px] text-white font-medium border border-slate-700 flex items-center gap-1.5 pointer-events-none">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+        <span>{tileInfo.title}</span>
       </div>
-      <div className="absolute bottom-2 left-2 bg-black/80 px-1.5 py-0.5 rounded text-[8px] text-gray-400 font-mono border border-gray-700 pointer-events-none">
-        CAM-{["FRONT", "REAR", "LEFT", "RIGHT", "CABIN"].indexOf(camera) + 1} · {bus.bus_id}
+      <div className="absolute bottom-2 left-2 bg-slate-900/90 px-2 py-0.5 rounded text-[9px] text-amber-300 font-medium border border-slate-700 pointer-events-none">
+        {tileInfo.subtitle}
       </div>
     </div>
   );
@@ -185,30 +186,45 @@ export default function CommandCenterPage() {
     return fleet.buses.find((b) => b.status === "LIVE") || fleet.buses[0];
   }, [fleet, selectedId]);
 
-  const navActive = fleet ? `LIVE ${fleet.live_buses}/${fleet.total_buses}` : "—";
-
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-white">Fleet Camera Command Center</h1>
-          <p className="text-sm text-gray-500">All buses as mobile sensing units — any camera, any bus, one console</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Fleet Surveillance & Video Analytics
+            </span>
+            <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[10px] font-semibold text-blue-800 tracking-wide">
+              MUNICIPAL CONTROL ROOM
+            </span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Fleet Camera Command Center
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Public transit buses functioning as mobile municipal sensor platforms. Real-time vision analytics, defect detection, and spatial telemetry.
+          </p>
         </div>
-        <div className="flex items-center gap-3 text-[11px]">
-          <Badge text={navActive} variant="info" />
-          <Badge text={`${fleet?.cameras_online ?? 0} CAMS ONLINE`} variant="success" />
-          <Badge text={polling ? "AUTO-POLLING · 5s" : "PAUSED"} variant={polling ? "online" : "warning"} />
+        <div className="flex items-center gap-2 text-xs">
+          <Badge text={fleet ? `ACTIVE UNITS: ${fleet.live_buses}/${fleet.total_buses}` : "CONNECTING..."} variant="info" />
+          <Badge text={`${fleet?.cameras_online ?? 0} SENSOR FEEDS`} variant="success" />
+          <Badge text={polling ? "POLLING: 5s" : "STANDBY"} variant={polling ? "default" : "warning"} />
         </div>
       </div>
 
       {!fleet && (
-        <Card><div className="p-8 text-center text-gray-500 text-sm">Loading fleet…</div></Card>
+        <Card>
+          <div className="p-12 text-center text-slate-500 text-xs">
+            Querying municipal transit telemetry...
+          </div>
+        </Card>
       )}
 
       {fleet && fleet.buses.length > 0 && (
         <>
-          {/* Fleet strip */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Transit Units Selection Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {fleet.buses.map((bus) => {
               const isSel = bus.bus_id === selected?.bus_id;
               const camOnline = bus.cameras.filter((c) => c.active).length;
@@ -216,29 +232,35 @@ export default function CommandCenterPage() {
                 <button
                   key={bus.bus_id}
                   onClick={() => setSelectedId(bus.bus_id)}
-                  className={`text-left p-3 rounded-lg border transition-all ${
+                  className={`text-left p-3.5 rounded-lg border transition-all ${
                     isSel
-                      ? "bg-cyan-500/10 border-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.15)]"
-                      : "bg-gray-900 border-gray-800 hover:border-gray-600"
+                      ? "bg-blue-50/70 border-blue-600 ring-1 ring-blue-600 shadow-sm"
+                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`text-sm font-bold ${isSel ? "text-cyan-300" : "text-white"}`}>{bus.bus_id}</span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-medium ${
-                      bus.status === "LIVE"
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse"
-                        : "bg-gray-800 text-gray-500 border border-gray-700"
-                    }`}>
-                      {bus.status === "LIVE" ? "● LIVE" : "STANDBY"}
+                    <span className={`text-sm font-bold ${isSel ? "text-blue-900" : "text-slate-900"}`}>
+                      {bus.bus_id}
+                    </span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded font-semibold tracking-wide ${
+                        bus.status === "LIVE"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-slate-100 text-slate-600 border border-slate-200"
+                      }`}
+                    >
+                      {bus.status === "LIVE" ? "ACTIVE SENSING" : "STANDBY"}
                     </span>
                   </div>
-                  <div className="text-[10px] text-gray-500 mt-1">{bus.route_name} · {bus.route_id}</div>
-                  <div className="flex items-center justify-between mt-2 text-[10px]">
-                    <span className="text-gray-400">
-                      📹 {camOnline} cams · 🚨 {bus.incidents_today}
+                  <div className="text-xs text-slate-500 mt-1 truncate">
+                    {bus.route_name} ({bus.route_id})
+                  </div>
+                  <div className="flex items-center justify-between mt-2 text-[11px]">
+                    <span className="text-slate-600 font-medium">
+                      {camOnline} feeds · {bus.incidents_today} detections
                     </span>
-                    <span className="font-mono text-gray-500">
-                      {bus.latitude.toFixed(3)}, {bus.longitude.toFixed(3)}
+                    <span className="font-mono text-slate-400 text-[10px]">
+                      {bus.latitude.toFixed(3)}N, {bus.longitude.toFixed(3)}E
                     </span>
                   </div>
                 </button>
@@ -248,94 +270,113 @@ export default function CommandCenterPage() {
 
           {selected && (
             <>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
+              {/* Primary Feed and Telemetry Details */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
                   <Card className="overflow-hidden">
                     <CardHeader>
                       <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-3">
-                          <span className={`w-2 h-2 rounded-full ${selected.status === "LIVE" ? "bg-emerald-500 animate-pulse" : "bg-gray-600"}`} />
-                          <span className="text-sm font-semibold text-white">{selected.bus_id} — FRONT</span>
-                          <Badge text={selected.status === "LIVE" ? "AI OVERLAY ACTIVE" : "FEED LINKED"} variant={selected.status === "LIVE" ? "success" : "default"} />
-                          <Badge text={selected.ai_mode} variant="info" />
+                          <span className={`w-2.5 h-2.5 rounded-full ${selected.status === "LIVE" ? "bg-emerald-500" : "bg-slate-400"}`} />
+                          <span className="text-sm font-bold text-slate-900">
+                            Unit {selected.bus_id} — Primary Forward Optical Feed
+                          </span>
+                          <Badge text={selected.status === "LIVE" ? "STREAM LIVE" : "OFFLINE"} variant={selected.status === "LIVE" ? "success" : "default"} />
                         </div>
-                        <span className="text-[10px] text-gray-400 font-mono">{selected.route_name}</span>
+                        <span className="text-xs font-mono text-slate-500">{selected.route_name}</span>
                       </div>
                     </CardHeader>
                     <div className="relative">
                       <CameraFrame bus={selected} camera="FRONT" />
 
-                      {/* Live detection alert overlay */}
-                      {alertVisible && latestAlert && (() => {
-                        const issueType = (latestAlert.type || "DETECTION").toUpperCase().replace(/_/g, " ");
-                        const sev = latestAlert.severity || "MEDIUM";
-                        const sevColor = sev === "CRITICAL" ? "border-red-500 bg-red-500/15" : sev === "HIGH" ? "border-orange-500 bg-orange-500/12" : "border-yellow-500 bg-yellow-500/10";
-                        const sevText = sev === "CRITICAL" ? "text-red-400" : sev === "HIGH" ? "text-orange-400" : "text-yellow-400";
-                        const sevGlow = sev === "CRITICAL" ? "shadow-[0_0_30px_rgba(239,68,68,0.4)]" : sev === "HIGH" ? "shadow-[0_0_25px_rgba(249,115,22,0.35)]" : "shadow-[0_0_20px_rgba(234,179,8,0.3)]";
-                        return (
-                          <>
-                            <div className="absolute inset-0 pointer-events-none animate-pulse" style={{ background: sev === "CRITICAL" ? "rgba(220,38,38,0.08)" : sev === "HIGH" ? "rgba(249,115,22,0.06)" : "rgba(234,179,8,0.04)" }} />
-                            <div className={`absolute top-14 left-1/2 -translate-x-1/2 ${sev === "CRITICAL" ? "bg-red-600/90" : sev === "HIGH" ? "bg-orange-600/90" : "bg-yellow-600/90"} backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] text-white font-bold tracking-wider ${sevGlow} flex items-center gap-2 animate-bounce`}>
-                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                              {issueType} DETECTED — {selected.bus_id}
+                      {/* Live Detection Alert Banner */}
+                      {alertVisible && latestAlert && (
+                        <div className="absolute top-14 left-1/2 -translate-x-1/2 w-11/12 max-w-md bg-slate-900/95 border border-amber-400 p-3 rounded-md shadow-xl text-white">
+                          <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-amber-400" />
+                              <span className="text-xs font-bold text-amber-300 uppercase tracking-wide">
+                                Real-Time Detection Flag
+                              </span>
                             </div>
-                            <div className={`absolute bottom-16 left-1/2 -translate-x-1/2 w-[55%] border-2 ${sevColor} rounded-lg ${sevGlow} backdrop-blur-sm transition-all duration-300`}>
-                              <div className={`flex items-center justify-between px-3 py-1.5 border-b ${sev === "CRITICAL" ? "border-red-500/30" : sev === "HIGH" ? "border-orange-500/30" : "border-yellow-500/30"}`}>
-                                <div className="flex items-center gap-2">
-                                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                                  <span className={`text-xs font-bold ${sevText} uppercase tracking-wider`}>⚠ {issueType}</span>
-                                </div>
-                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${sev === "CRITICAL" ? "bg-red-600 text-white" : sev === "HIGH" ? "bg-orange-600 text-white" : "bg-yellow-600 text-black"}`}>{sev}</span>
-                              </div>
-                              <div className="px-3 py-2 grid grid-cols-3 gap-2 text-[9px]">
-                                <div>
-                                  <div className="text-gray-500 uppercase tracking-wider mb-0.5">Bus</div>
-                                  <div className="text-cyan-300 font-mono font-bold text-sm">{selected.bus_id}</div>
-                                </div>
-                                <div>
-                                  <div className="text-gray-500 uppercase tracking-wider mb-0.5">Confidence</div>
-                                  <div className="text-emerald-400 font-mono font-bold text-sm">
-                                    {latestAlert.confidence != null ? `${(latestAlert.confidence * 100).toFixed(0)}%` : "—"}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-gray-500 uppercase tracking-wider mb-0.5">Event</div>
-                                  <div className="text-gray-300 font-mono text-[8px]">{latestAlert.id || "EVT-LIVE"}</div>
-                                </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-400 text-slate-950">
+                              {latestAlert.severity || "MEDIUM"}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div>
+                              <div className="text-[10px] text-slate-400">Class</div>
+                              <div className="font-semibold text-slate-100 uppercase">
+                                {(latestAlert.type || "DEFECT").replace(/_/g, " ")}
                               </div>
                             </div>
-                          </>
-                        );
-                      })()}
+                            <div>
+                              <div className="text-[10px] text-slate-400">Confidence</div>
+                              <div className="font-mono text-emerald-400 font-semibold">
+                                {latestAlert.confidence != null ? `${(latestAlert.confidence * 100).toFixed(0)}%` : "—"}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-slate-400">Unit</div>
+                              <div className="font-mono text-slate-300">{selected.bus_id}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </Card>
                 </div>
 
                 <div className="space-y-4">
+                  {/* Bus Telemetry Card */}
                   <Card>
                     <CardHeader>
-                      <span className="text-xs text-gray-400">Bus Telemetry</span>
+                      <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                        Unit Telemetry & Status
+                      </span>
                       <Badge text={selected.status} variant={selected.status === "LIVE" ? "success" : "default"} />
                     </CardHeader>
-                    <div className="p-4 space-y-2 text-[11px]">
-                      <div className="flex justify-between"><span className="text-gray-500">Route</span><span className="text-gray-200">{selected.route_name}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">GPS</span><span className="text-gray-200 font-mono">{selected.latitude.toFixed(5)}N, {selected.longitude.toFixed(5)}E</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Stream FPS</span><span className="text-emerald-400 font-mono">{selected.fps.toFixed(1)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Events today</span><span className="text-orange-400">{selected.events_today}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Incidents today</span><span className="text-red-400">{selected.incidents_today}</span></div>
+                    <div className="p-4 space-y-2 text-xs">
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-500">Transit Corridor</span>
+                        <span className="font-medium text-slate-900">{selected.route_name}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-500">Geographic Coordinates</span>
+                        <span className="font-mono text-slate-800">
+                          {selected.latitude.toFixed(5)}°N, {selected.longitude.toFixed(5)}°E
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-500">Inference Throughput</span>
+                        <span className="font-mono font-semibold text-emerald-700">{selected.fps.toFixed(1)} FPS</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span className="text-slate-500">Road Defects Flagged (24h)</span>
+                        <span className="font-semibold text-slate-900 font-mono">{selected.events_today}</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-500">Traffic Incidents (24h)</span>
+                        <span className="font-semibold text-slate-900 font-mono">{selected.incidents_today}</span>
+                      </div>
                     </div>
                   </Card>
 
+                  {/* Vehicle Counting Card */}
                   <Card>
                     <CardHeader>
-                      <span className="text-xs text-gray-400">Vehicle Population</span>
-                      <span className="text-[9px] text-gray-500">on {selected.bus_id}</span>
+                      <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                        Vehicle Density In Area
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">EDGE BYTE-TRACK</span>
                     </CardHeader>
-                    <div className="p-3 grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="p-3 grid grid-cols-2 gap-2 text-xs">
                       {VEHICLE_KEYS.map(({ label, key }) => (
-                        <div key={key} className="flex justify-between items-center p-2 rounded bg-gray-900/70 border border-gray-800">
-                          <span className="text-gray-400">{label}</span>
-                          <span className="text-cyan-400 font-mono font-bold text-sm">{selected.vehicle_counts[key] || 0}</span>
+                        <div key={key} className="flex justify-between items-center p-2.5 rounded bg-slate-50 border border-slate-200">
+                          <span className="text-slate-600">{label}</span>
+                          <span className="font-mono font-bold text-slate-900">
+                            {selected.vehicle_counts[key] || 0}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -343,52 +384,78 @@ export default function CommandCenterPage() {
                 </div>
               </div>
 
-              <div>
-                <Card>
-                  <CardHeader>
-                    <span className="text-sm font-medium text-gray-300">Camera Array — {selected.bus_id}</span>
-                    <Badge text={`${selected.cameras.filter((c) => c.active).length}/5 ONLINE`} variant="info" />
-                  </CardHeader>
-                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {["REAR", "LEFT", "RIGHT", "CABIN"].map((cam) => (
-                      <Card key={cam} className="overflow-hidden">
-                        <CardHeader>
-                          <div className="flex items-center justify-between w-full">
-                            <span className="text-[10px] font-semibold text-gray-400">{cam} CAMERA</span>
-                            {selected.cameras.find((c) => c.camera === cam)?.active ? (
-                              <Badge text="LIVE FEED" variant="success" />
-                            ) : (
-                              <Badge text="STANDBY" variant="default" />
-                            )}
-                          </div>
-                        </CardHeader>
-                        <CameraFrame bus={selected} camera={cam} />
-                      </Card>
-                    ))}
+              {/* Multi-Perspective Camera Array */}
+              <Card>
+                <CardHeader>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Multi-Perspective Sensor Perspectives — Unit {selected.bus_id}
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Note: In this test harness, auxiliary perspectives (Rear, Flanks, Cabin) are synthetically derived from the forward sensing array.
+                    </p>
                   </div>
-                </Card>
-              </div>
+                  <Badge text={`${selected.cameras.filter((c) => c.active).length}/5 CHANNELS ACTIVE`} variant="info" />
+                </CardHeader>
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {["REAR", "LEFT", "RIGHT", "CABIN"].map((cam) => {
+                    const info = TILE_DESCRIPTIONS[cam];
+                    return (
+                      <div key={cam} className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                        <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-bold text-slate-900">{info.title}</span>
+                            <div className="text-[10px] text-amber-700 font-medium">{info.subtitle}</div>
+                          </div>
+                          <Badge text="SYNTHETIC" variant="medium" />
+                        </div>
+                        <CameraFrame bus={selected} camera={cam} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
 
+              {/* Recent Detections on this Bus */}
               {selected.recent_events.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <span className="text-sm font-medium text-gray-300">Recent Detections — {selected.bus_id}</span>
-                    <Badge text={`${selected.recent_events.length} events`} variant="medium" />
+                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Recent Detections by Unit {selected.bus_id}
+                    </span>
+                    <Badge text={`${selected.recent_events.length} EVENTS`} variant="default" />
                   </CardHeader>
-                  <div className="p-4 space-y-1.5 max-h-[260px] overflow-y-auto">
-                    {selected.recent_events.map((ev) => (
-                      <div key={ev.event_id} className="flex items-center justify-between p-2 bg-gray-800/50 rounded border-l-2 text-[10px]" style={{ borderLeftColor: ev.severity === "CRITICAL" ? "#ef4444" : ev.severity === "HIGH" ? "#f97316" : ev.severity === "MEDIUM" ? "#eab308" : "#22c55e" }}>
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold text-white uppercase">{ev.event_type.replace(/_/g, " ")}</span>
-                          <span className="text-[9px] text-gray-500 font-mono">{ev.event_id}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-emerald-400 font-mono">{(ev.confidence * 100).toFixed(0)}%</span>
-                          <Badge text={ev.severity} variant={ev.severity.toLowerCase()} />
-                          <span className="text-[9px] text-gray-500">{fmtTime(ev.created_at)}</span>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+                          <th className="py-2.5 px-4">Event ID</th>
+                          <th className="py-2.5 px-4">Defect / Incident Type</th>
+                          <th className="py-2.5 px-4">Confidence</th>
+                          <th className="py-2.5 px-4">Severity</th>
+                          <th className="py-2.5 px-4">Captured Time</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {selected.recent_events.map((ev) => (
+                          <tr key={ev.event_id} className="hover:bg-slate-50/50">
+                            <td className="py-2 px-4 font-mono text-slate-600">{ev.event_id}</td>
+                            <td className="py-2 px-4 font-semibold text-slate-900 uppercase">
+                              {ev.event_type.replace(/_/g, " ")}
+                            </td>
+                            <td className="py-2 px-4 font-mono text-emerald-700 font-medium">
+                              {(ev.confidence * 100).toFixed(0)}%
+                            </td>
+                            <td className="py-2 px-4">
+                              <Badge text={ev.severity} variant={ev.severity.toLowerCase()} />
+                            </td>
+                            <td className="py-2 px-4 text-slate-500 font-mono text-[11px]">
+                              {fmtTime(ev.created_at)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </Card>
               )}
@@ -397,11 +464,14 @@ export default function CommandCenterPage() {
         </>
       )}
 
-      <div className="flex items-center justify-between text-[10px] text-gray-600">
-        <span>Every bus = one edge unit (YOLOv8 + ByteTrack + defect suite + plate OCR) streaming detections to this console. Video stays on the bus; only intelligence reaches the center.</span>
+      {/* Footer disclaimer */}
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600 flex items-center justify-between flex-wrap gap-2">
+        <span>
+          Edge Compute Architecture: YOLOv8 and ByteTrack run on-device at the transit unit. Detections and spatial coordinates are synchronized over WebSocket.
+        </span>
         <div className="flex items-center gap-2">
-          <span className={`w-1.5 h-1.5 rounded-full ${messages.length > 0 ? "bg-emerald-500 animate-pulse" : "bg-gray-700"}`} />
-          WS {messages.length > 0 ? "RECEIVING" : "IDLE"}
+          <span className={`w-2 h-2 rounded-full ${messages.length > 0 ? "bg-emerald-500" : "bg-slate-400"}`} />
+          <span className="font-mono text-[11px]">WS: {messages.length > 0 ? "ACTIVE" : "STANDBY"}</span>
         </div>
       </div>
     </div>

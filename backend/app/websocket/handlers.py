@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.app.websocket.manager import ws_manager
 
 router = APIRouter()
+
+
+async def _handle_incoming(websocket: WebSocket, text_data: str) -> None:
+    try:
+        msg = json.loads(text_data)
+        if isinstance(msg, dict) and msg.get("type") == "ping":
+            await websocket.send_json({"type": "pong", "t": msg.get("t")})
+    except Exception:
+        pass
 
 
 @router.websocket("/ws/events")
@@ -13,6 +23,7 @@ async def events_ws(websocket: WebSocket) -> None:
     try:
         while True:
             data = await websocket.receive_text()
+            await _handle_incoming(websocket, data)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, "events")
 
@@ -23,6 +34,7 @@ async def camera_ws(websocket: WebSocket, camera_id: str) -> None:
     try:
         while True:
             data = await websocket.receive_text()
+            await _handle_incoming(websocket, data)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, f"camera:{camera_id}")
 
@@ -33,6 +45,7 @@ async def buses_ws(websocket: WebSocket) -> None:
     try:
         while True:
             data = await websocket.receive_text()
+            await _handle_incoming(websocket, data)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, "buses")
 
@@ -43,5 +56,7 @@ async def notifications_ws(websocket: WebSocket) -> None:
     try:
         while True:
             data = await websocket.receive_text()
+            await _handle_incoming(websocket, data)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, "notifications")
+

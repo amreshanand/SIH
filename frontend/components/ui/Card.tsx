@@ -3,20 +3,20 @@
 import { ReactNode } from "react";
 
 const toneMap: Record<string, { border: string; text: string }> = {
-  cyan: { border: "border-cyan-500/30", text: "text-cyan-400" },
-  red: { border: "border-red-500/30", text: "text-red-400" },
-  orange: { border: "border-orange-500/30", text: "text-orange-400" },
-  green: { border: "border-green-500/30", text: "text-green-400" },
-  blue: { border: "border-blue-500/30", text: "text-blue-400" },
-  purple: { border: "border-purple-500/30", text: "text-purple-400" },
-  amber: { border: "border-amber-500/30", text: "text-amber-400" },
-  emerald: { border: "border-emerald-500/30", text: "text-emerald-400" },
+  cyan: { border: "border-slate-200", text: "text-blue-700" },
+  blue: { border: "border-slate-200", text: "text-blue-700" },
+  red: { border: "border-slate-200", text: "text-red-700" },
+  orange: { border: "border-slate-200", text: "text-amber-700" },
+  green: { border: "border-slate-200", text: "text-emerald-700" },
+  amber: { border: "border-slate-200", text: "text-amber-700" },
+  emerald: { border: "border-slate-200", text: "text-emerald-700" },
+  purple: { border: "border-slate-200", text: "text-indigo-700" },
 };
 
 export function KpiCard({
   label,
   value,
-  color = "cyan",
+  color = "blue",
   subtitle,
   icon,
 }: {
@@ -26,17 +26,16 @@ export function KpiCard({
   subtitle?: string;
   icon?: ReactNode;
 }) {
-  const tone = toneMap[color] || toneMap.cyan;
+  const tone = toneMap[color] || toneMap.blue;
   return (
-    <div className={`relative bg-gray-900 border ${tone.border} rounded-lg p-4 overflow-hidden`}>
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+    <div className="bg-white border border-slate-200 rounded p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-gray-500">{label}</div>
-          <div className={`text-2xl font-bold mt-1 ${tone.text}`}>{value}</div>
-          {subtitle && <div className="text-[10px] text-gray-500 mt-1">{subtitle}</div>}
+          <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{label}</div>
+          <div className="text-2xl font-bold mt-1 text-slate-900">{value}</div>
+          {subtitle && <div className="text-[11px] text-slate-500 mt-1">{subtitle}</div>}
         </div>
-        {icon && <div className="text-gray-600 mt-0.5">{icon}</div>}
+        {icon && <div className="text-slate-400 mt-0.5">{icon}</div>}
       </div>
     </div>
   );
@@ -44,15 +43,16 @@ export function KpiCard({
 
 export function Stat({ label, value, tone = "default" }: { label: string; value: string | number; tone?: string }) {
   const tones: Record<string, string> = {
-    default: "text-gray-200",
-    green: "text-emerald-400",
-    red: "text-red-400",
-    amber: "text-amber-400",
-    cyan: "text-cyan-400",
+    default: "text-slate-900",
+    green: "text-emerald-700",
+    red: "text-red-700",
+    amber: "text-amber-700",
+    cyan: "text-blue-700",
+    blue: "text-blue-700",
   };
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-widest text-gray-500">{label}</div>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{label}</div>
       <div className={`text-lg font-bold mt-0.5 ${tones[tone] || tones.default}`}>{value}</div>
     </div>
   );
@@ -60,27 +60,36 @@ export function Stat({ label, value, tone = "default" }: { label: string; value:
 
 export function Badge({ text, variant = "default" }: { text: string; variant?: string }) {
   const styles: Record<string, string> = {
-    default: "bg-gray-700/60 text-gray-300 border border-gray-600/50",
-    critical: "bg-red-500/20 text-red-400 border border-red-500/30",
-    high: "bg-orange-500/20 text-orange-400 border border-orange-500/30",
-    medium: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30",
-    low: "bg-green-500/20 text-green-400 border border-green-500/30",
-    success: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
-    warning: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
-    info: "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30",
-    online: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/25",
+    default: "bg-slate-100 text-slate-700 border-slate-200",
+    critical: "bg-red-50 text-red-700 border-red-200 font-semibold",
+    danger: "bg-red-50 text-red-700 border-red-200 font-semibold",
+    high: "bg-amber-50 text-amber-800 border-amber-200 font-medium",
+    medium: "bg-amber-50 text-amber-700 border-amber-200",
+    low: "bg-slate-100 text-slate-700 border-slate-200",
+    success: "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium",
+    warning: "bg-amber-50 text-amber-700 border-amber-200 font-medium",
+    info: "bg-blue-50 text-blue-700 border-blue-200 font-medium",
+    online: "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium",
+    detected: "bg-amber-50 text-amber-800 border-amber-200 font-medium",
+    confirmed: "bg-blue-50 text-blue-700 border-blue-200 font-medium",
+    reopened: "bg-rose-50 text-rose-700 border-rose-200 font-medium",
   };
-  return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${styles[variant] || styles.default}`}>{text}</span>;
+  return (
+    <span className={`inline-flex items-center text-[11px] px-2 py-0.5 rounded border ${styles[variant.toLowerCase()] || styles.default}`}>
+      {text}
+    </span>
+  );
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`bg-gray-900/70 border border-gray-800 rounded-lg backdrop-blur-sm shadow-sm ${className}`}>
+    <div className={`bg-white border border-slate-200 rounded shadow-none ${className}`}>
       {children}
     </div>
   );
 }
 
-export function CardHeader({ children }: { children: ReactNode }) {
-  return <div className="px-4 py-3 border-b border-gray-800/80 flex items-center justify-between">{children}</div>;
+export function CardHeader({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 ${className}`}>{children}</div>;
 }
+

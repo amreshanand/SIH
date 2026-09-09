@@ -33,6 +33,7 @@ class SessionUpdate(BaseModel):
     status: Optional[str] = None
     gps_source: Optional[str] = None
     ai_mode: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 @router.post("/sessions/start")
@@ -88,6 +89,10 @@ async def update_session(
         session.gps_source = payload.gps_source
     if payload.ai_mode is not None:
         session.ai_mode = payload.ai_mode
+    if payload.metadata is not None:
+        merged = dict(session.metadata_json or {})
+        merged.update(payload.metadata)
+        session.metadata_json = merged
     await db.commit()
     await db.refresh(session)
     return {
@@ -125,13 +130,31 @@ async def close_session(
     }
 
 
+def _serialize_session(s: SensingSession) -> dict:
+    return {
+        "session_id": s.session_id,
+        "bus_id": s.bus_id,
+        "camera_id": s.camera_id,
+        "started_at": s.started_at.isoformat() if s.started_at else None,
+        "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+        "gps_source": s.gps_source,
+        "ai_mode": s.ai_mode,
+        "model_name": s.model_name,
+        "frame_count": s.frame_count,
+        "event_count": s.event_count,
+        "upload_count": s.upload_count,
+        "error_count": s.error_count,
+        "status": s.status,
+    }
+
+
 @router.get("/sessions/active")
 async def active_sessions(db: AsyncSession = Depends(get_db)) -> dict:
     result = await db.execute(
         select(SensingSession).where(SensingSession.status == "ACTIVE").order_by(SensingSession.started_at.desc())
     )
     sessions = list(result.scalars().all())
-    return {"total": len(sessions), "sessions": sessions}
+    return {"total": len(sessions), "sessions": [_serialize_session(s) for s in sessions]}
 
 
 @router.get("/sessions")
@@ -149,4 +172,5 @@ async def list_sessions(
     total = (await db.execute(count_q)).scalar() or 0
     q = q.order_by(SensingSession.started_at.desc()).offset(skip).limit(limit)
     sessions = list((await db.execute(q)).scalars().all())
-    return {"total": total, "sessions": sessions}
+    return {"total": total, "sessions": [_serialize_session(s) for s in sessions]}
+

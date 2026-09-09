@@ -45,14 +45,53 @@ async def create_event(
     _actor: str = Depends(edge_or_user),
     _rl: None = Depends(rate_limit_events),
 ) -> Event:
+    from backend.app.core.config import settings as _settings
+    # Reject explicitly-simulated events outside demo mode. Real edge devices
+    # never send these; accepting them would silently inject fake data.
+    sim_marker = payload.metadata_json.get("simulated") if payload.metadata_json else False
+    if not _settings.demo_mode and (
+        str(payload.source).upper() == "SIMULATED" or sim_marker
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Event {payload.event_id} is marked simulated and is rejected in production.",
+        )
     bus = await _resolve_bus(db, payload.bus_id)
     import uuid as _uuid
+
+    # Real-inference guarantee (Phase 8): outside demo mode a road-damage event
+    # MUST carry true YOLO provenance (detection bbox + the model that produced
+    # it + the tracked object id). Rejecting anything else prevents non-inferred
+    # data from reaching the issue pipeline.
+    merged_meta = payload.to_metadata_json()
+    if (
+        not _settings.demo_mode
+        and payload.is_road_damage
+        and not payload.has_real_inference()
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Road-damage event {payload.event_id} lacks real-inference "
+                "provenance (bbox, source_model and track_id are required)."
+            ),
+        )
+
     cam_id = None
     if payload.camera_id:
         try:
             cam_id = _uuid.UUID(str(payload.camera_id))
         except ValueError:
             cam_id = None
+
+    ward = payload.ward or merged_meta.get("ward")
+    gps_accuracy = payload.gps_accuracy if payload.gps_accuracy is not None else merged_meta.get("gps_accuracy")
+    track_id = payload.track_id if payload.track_id is not None else merged_meta.get("track_id")
+    track_age_frames = payload.track_age_frames if payload.track_age_frames is not None else merged_meta.get("track_age_frames")
+    consecutive_frames = payload.consecutive_frames if payload.consecutive_frames is not None else merged_meta.get("consecutive_frames")
+    fused_score = payload.fused_score if payload.fused_score is not None else merged_meta.get("fused_score")
+    road_overlap_ratio = payload.road_overlap_ratio if payload.road_overlap_ratio is not None else merged_meta.get("road_overlap_ratio")
+
     event = Event(
         event_id=payload.event_id,
         event_type=payload.event_type,
@@ -63,12 +102,64 @@ async def create_event(
         latitude=payload.latitude,
         longitude=payload.longitude,
         evidence_url=payload.evidence_url,
-        metadata_json=payload.metadata_json,
+        metadata_json=merged_meta,
         source=payload.source,
+        ward=ward,
+        gps_accuracy=gps_accuracy,
+        track_id=track_id,
+        track_age_frames=track_age_frames,
+        consecutive_frames=consecutive_frames,
+        fused_score=fused_score,
+        road_overlap_ratio=road_overlap_ratio,
     )
     db.add(event)
     await db.commit()
     await db.refresh(event)
+
+    # Traffic telemetry: persist a TrafficRecord so congestion analytics, the
+    # OD matrix and route-delay estimates all have data to render. Best-effort —
+    # a failure here must never reject the event.
+    try:
+        from backend.app.services.traffic_service import create_traffic_records_for_event
+        from backend.app.models import TrafficRecord
+        road_segment = merged_meta.get("road_segment") or merged_meta.get("route_name")
+        await create_traffic_records_for_event(
+            event_id=event.event_id,
+            bus_id=bus.id,
+            latitude=event.latitude,
+            longitude=event.longitude,
+            metadata_json=merged_meta,
+            db=db,
+            road_segment=road_segment,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception(
+            "Traffic record creation failed for event %s", event.event_id
+        )
+
+    # Audit: every admitted event is logged for provenance/accountability.
+    try:
+        from backend.app.services.audit_service import log_action
+        await log_action(
+            user_id=None,
+            action="EVENT_CREATED",
+            entity_type="EVENT",
+            entity_id=event.event_id,
+            new_value={
+                "event_type": event.event_type,
+                "severity": event.severity,
+                "confidence": event.confidence,
+                "source_model": merged_meta.get("source_model"),
+                "track_id": merged_meta.get("track_id"),
+                "actor": _actor,
+            },
+            db=db,
+        )
+        await db.commit()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Event audit failed for %s", event.event_id)
 
     await ws_manager.broadcast("events", {
         "type": "new_event",

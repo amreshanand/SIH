@@ -1,6 +1,15 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TOKEN_KEY = "urbansense_token";
 const USER_KEY = "urbansense_user";
+
+export function getEvidenceImageUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+  const cleanPath = url.startsWith("/") ? url.slice(1) : url;
+  return `${API_BASE}/${cleanPath}`;
+}
 
 export interface AuthUser {
   id: string;
@@ -88,12 +97,22 @@ export const auth = {
     }
   },
   setToken(token: string) {
-    if (typeof window !== "undefined") window.localStorage.setItem(TOKEN_KEY, token);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(TOKEN_KEY, token);
+      window.dispatchEvent(new Event("auth-changed"));
+    }
+  },
+  setUser(user: AuthUser) {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+      window.dispatchEvent(new Event("auth-changed"));
+    }
   },
   clear() {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(TOKEN_KEY);
       window.localStorage.removeItem(USER_KEY);
+      window.dispatchEvent(new Event("auth-changed"));
     }
   },
   async login(username: string, password: string) {
@@ -102,7 +121,7 @@ export const auth = {
       { method: "POST", auth: false, body: JSON.stringify({ username, password }) }
     );
     this.setToken(res.access_token);
-    if (typeof window !== "undefined") window.localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+    this.setUser(res.user);
     return res;
   },
 };
@@ -112,6 +131,12 @@ export const api = {
 
   getSystemHealth: () =>
     fetchAPI<import("../types").SystemHealth>("/api/system/health", { auth: false }),
+
+  getSystemModels: () =>
+    fetchAPI<{
+      vehicle_model: { name: string; path: string; status: string; available: boolean; size_bytes: number };
+      road_damage_model: { name: string; path: string; status: string; available: boolean; size_bytes: number; note: string };
+    }>("/api/system/models", { auth: false }),
 
   getSpatialStatus: () =>
     fetchAPI<import("../types").SpatialStatus>("/api/system/spatial", { auth: false }),
@@ -153,12 +178,35 @@ export const api = {
 
   getBuses: () => fetchAPI<import("../types").Bus[]>("/api/buses"),
 
+  createBus: (data: { bus_number: string; route_id?: string | null; status?: string }) =>
+    fetchAPI<import("../types").Bus>("/api/buses", { method: "POST", body: JSON.stringify(data) }),
+
   getBusLocations: () => fetchAPI<import("../types").BusLocation[]>("/api/buses/locations"),
 
   getBusLocation: (busId: string) => fetchAPI<import("../types").BusLocation>(`/api/buses/${busId}/location`),
 
+  getBusCameras: (busId: string) =>
+    fetchAPI<Array<{ id: string; bus_id: string; position: string; status: string; stream_url: string | null }>>(
+      `/api/buses/${busId}/cameras`
+    ),
+
+  postBusTelemetry: (
+    busId: string,
+    data: { latitude: number; longitude: number; speed?: number; heading?: number; timestamp?: string }
+  ) =>
+    fetchAPI<{ status: string; telemetry: unknown }>(`/api/buses/${busId}/telemetry`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getRoutes: () => fetchAPI<import("../types").RouteResponse[]>("/api/buses/routes/all"),
+
 
   getNotifications: () => fetchAPI<{ notifications: import("../types").Notification[]; total: number; unread: number }>("/api/notifications"),
+
+  markNotificationRead: (id: string) => fetchAPI<{ status: string }>(`/api/notifications/${id}/read`, { method: "PATCH" }),
+
+  markAllNotificationsRead: () => fetchAPI<{ status: string }>("/api/notifications/read-all", { method: "POST" }),
 
   getAuthorities: () => fetchAPI<{ authorities: Array<{ id: string; username: string; department: string | null }> }>("/api/authorities"),
 
@@ -166,23 +214,25 @@ export const api = {
 
   getFleet: () => fetchAPI<import("../types").FleetStatus>("/api/stream/fleet"),
 
-  getVerificationHistory: (issueId: string) => fetchAPI(`/api/verification/issue/${issueId}`),
+  getVerificationHistory: (issueId: string) => fetchAPI<import("../types").Verification[]>(`/api/verification/issue/${issueId}`),
 
   getTraffic: (params?: Record<string, string>) => {
     const q = params ? "?" + new URLSearchParams(params).toString() : "";
-    return fetchAPI<{ traffic: Array<{
-      id: string;
-      bus_id: string;
-      road_segment: string;
-      vehicle_count: number;
-      vehicle_distribution: Record<string, number> | null;
-      average_speed: number;
-      congestion_score: number;
-      latitude: number;
-      longitude: number;
-      bus_speed: number | null;
-      created_at: string;
-    }>; total: number }>(`/api/traffic${q}`);
+    return fetchAPI<{
+      traffic: Array<{
+        id: string;
+        bus_id: string;
+        road_segment: string;
+        vehicle_count: number;
+        vehicle_distribution: Record<string, number> | null;
+        average_speed: number;
+        congestion_score: number;
+        latitude: number;
+        longitude: number;
+        bus_speed: number | null;
+        created_at: string;
+      }>; total: number
+    }>(`/api/traffic${q}`);
   },
 
   getTrafficHeatmap: () =>
@@ -201,7 +251,7 @@ export const api = {
   runSihMode: () =>
     fetchAPI<{ status: string; total_steps: number; steps_completed: Array<Record<string, unknown>>; issue_created: string | null }>("/api/demo/sih", { method: "POST" }),
 
-  runDemo: () => fetchAPI<{ status: string; total_steps: number; steps_completed: Array<{ step: number; action: string; message: string; [key: string]: unknown }>; issue_created: string | null }>("/api/demo/run", { method: "POST" }),
+  runDemo: () => fetchAPI<{ status: string; total_steps: number; steps_completed: Array<{ step: number; action: string; message: string;[key: string]: unknown }>; issue_created: string | null }>("/api/demo/run", { method: "POST" }),
 
   getRoadHealth: () =>
     fetchAPI<{ roads: Array<{ department: string; issue_count: number; health_score: number }> }>("/api/analytics/road-health"),
@@ -217,6 +267,25 @@ export const api = {
 
   getInfrastructure: () =>
     fetchAPI<import("../types").InfrastructureReport>("/api/analytics/infrastructure"),
+
+  getUsers: (params?: Record<string, string>) => {
+    const q = params ? "?" + new URLSearchParams(params).toString() : "";
+    return fetchAPI<{ users: import("../types").AdminUser[]; total: number }>(`/api/admin/users${q}`);
+  },
+
+  createUser: (data: { username: string; password?: string; role: string; department?: string }) =>
+    fetchAPI<{ id: string; username: string; role: string }>("/api/admin/users", { method: "POST", body: JSON.stringify(data) }),
+
+  updateUserRole: (userId: string, role: string) =>
+    fetchAPI<{ id: string; role: string }>(`/api/admin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+
+  getAuditLogs: (params?: Record<string, string>) => {
+    const q = params ? "?" + new URLSearchParams(params).toString() : "";
+    return fetchAPI<{ logs: import("../types").AuditLogEntry[]; total: number }>(`/api/admin/audit-logs${q}`);
+  },
+
+  createVerification: (data: Record<string, unknown>) =>
+    fetchAPI<import("../types").VerificationPostResult>("/api/verification", { method: "POST", body: JSON.stringify(data) }),
 };
 
 export const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.deps import require_auth
 from backend.app.database.session import get_db
-from backend.app.models import Issue, User
+from backend.app.models import Issue, IssueResolution, User
 from backend.app.schemas.issue import (
     IssueAssignmentCreate,
     IssueAssignmentResponse,
@@ -57,8 +57,14 @@ async def list_issues(
         q = q.where(Issue.status == status)
         count_q = count_q.where(Issue.status == status)
     if issue_type:
-        q = q.where(Issue.issue_type == issue_type)
-        count_q = count_q.where(Issue.issue_type == issue_type)
+        from backend.app.schemas.event import normalize_event_type
+        norm_type = normalize_event_type(issue_type)
+        if norm_type != issue_type:
+            q = q.where((Issue.issue_type == issue_type) | (Issue.issue_type == norm_type))
+            count_q = count_q.where((Issue.issue_type == issue_type) | (Issue.issue_type == norm_type))
+        else:
+            q = q.where(Issue.issue_type == issue_type)
+            count_q = count_q.where(Issue.issue_type == issue_type)
     if severity:
         q = q.where(Issue.severity == severity)
         count_q = count_q.where(Issue.severity == severity)
@@ -170,6 +176,45 @@ async def get_issue_timeline(issue_id: str, db: AsyncSession = Depends(get_db)) 
     }
 
 
+@router.get("/{issue_id}/resolution-history")
+async def get_issue_resolution_history(
+    issue_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Append-only resolution lifecycle for an issue.
+
+    Serves the full audit trail (creation → assignment → status changes →
+    resolution) used by the Authority Performance dashboard and the audit
+    requirement.
+    """
+    issue = await _resolve_issue(db, issue_id)
+    if not issue:
+        raise HTTPException(status_code=404, detail=f"Issue {issue_id} not found")
+
+    result = await db.execute(
+        select(IssueResolution)
+        .where(IssueResolution.issue_id == issue.id)
+        .order_by(IssueResolution.created_at)
+    )
+    history = list(result.scalars().all())
+
+    return {
+        "issue_id": issue.issue_id,
+        "status": issue.status,
+        "history": [
+            {
+                "action": h.action,
+                "from_status": h.from_status,
+                "to_status": h.to_status,
+                "notes": h.notes,
+                "authority_id": str(h.authority_id) if h.authority_id else None,
+                "timestamp": h.created_at.isoformat() if h.created_at else None,
+            }
+            for h in history
+        ],
+    }
+
+
 @router.patch("/{issue_id}", response_model=IssueResponse)
 async def update_issue(
     issue_id: str,
@@ -200,7 +245,7 @@ async def update_issue(
     await db.refresh(issue)
 
     await log_action(
-        user_id=None,
+        user_id=_user.id,
         action="STATUS_CHANGED",
         entity_type="ISSUE",
         entity_id=issue.issue_id,
@@ -208,6 +253,13 @@ async def update_issue(
         new_value={"status": issue.status},
         db=db,
     )
+    db.add(IssueResolution(
+        issue_id=issue.id,
+        action="STATUS_CHANGED",
+        from_status=old_status,
+        to_status=issue.status,
+        authority_id=_user.id,
+    ))
     await db.commit()
 
     await ws_manager.broadcast("events", {
@@ -263,6 +315,14 @@ async def assign_issue(
         metadata={"notes": payload.notes},
         db=db,
     )
+    db.add(IssueResolution(
+        issue_id=issue.id,
+        action="ASSIGNED",
+        from_status=old_status,
+        to_status="ASSIGNED",
+        authority_id=payload.authority_id,
+        notes=payload.notes,
+    ))
     await db.commit()
 
     await ws_manager.broadcast("events", {

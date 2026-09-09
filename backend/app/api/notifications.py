@@ -52,3 +52,17 @@ async def mark_read(
     notif.read = True
     await db.commit()
     return {"status": "read"}
+
+
+@router.post("/read-all")
+async def mark_all_read(
+    user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from sqlalchemy import update
+    await db.execute(
+        update(Notification).where(Notification.user_id == user.id, Notification.read == False).values(read=True)
+    )
+    await db.commit()
+    return {"status": "all_read"}
+

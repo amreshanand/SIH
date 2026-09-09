@@ -53,6 +53,10 @@ export interface Issue {
   affected_road: string | null;
   department: string | null;
   status: string;
+  consensus_level?: string;
+  unique_bus_count?: number;
+  distinct_buses_observed?: string[];
+  fused_confidence_score?: number;
   metadata_json: Record<string, unknown> | null;
   evidence_urls?: string[];
   created_at: string;
@@ -205,17 +209,6 @@ export interface SystemHealth {
   capabilities: Record<string, CapabilityBadge>;
   production: boolean;
 }
-  ai_mode: string;
-  gps_mode: string;
-  demo_mode: boolean;
-  debug: boolean;
-  bus_id: string | null;
-  camera: string | null;
-  spatial_engine: string;
-  pipeline: string;
-  capabilities: Record<string, CapabilityBadge>;
-  production: boolean;
-}
 
 export interface SpatialStatus {
   engine: string;
@@ -319,5 +312,50 @@ export interface FleetStatus {
   live_buses: number;
   cameras_online: number;
   buses: FleetBus[];
+}
+
+export interface CameraStatusInfo {
+  camera_id: string;
+  camera_type: string;
+  fps?: number;
+  counts?: Record<string, number>;
+  unique_tracks?: number;
+}
+
+export interface StreamStatus {
+  running: boolean;
+  source: string;
+  youtube_live_url?: string;
+  youtube_rear_url?: string;
+  youtube_left_url?: string;
+  youtube_right_url?: string;
+  youtube_cabin_url?: string;
+  front_stream_url?: string;
+  inside_stream_url?: string;
+  bus_id: string;
+  camera: string;
+  fps: number;
+  ai_mode?: string;
+  gps_mode?: string;
+  vehicle_counts?: Record<string, number>;
+  unique_tracks?: number;
+  cameras?: CameraStatusInfo[];
+}
+
+export interface RouteStop {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+export interface RouteResponse {
+  id: string;
+  route_name: string;
+  start_stop: string;
+  end_stop: string;
+  stops?: RouteStop[] | Record<string, unknown>;
+  distance_km?: number;
+  scheduled_duration_min?: number;
+  created_at: string;
 }
 

@@ -34,14 +34,14 @@ interface StepResult {
   verification?: VerificationDetail;
 }
 
-const actionColors: Record<string, string> = {
-  EVENT: "text-orange-400",
-  STATUS: "text-cyan-400",
-  ASSIGN: "text-blue-400",
-  STATUS_UPDATE: "text-purple-400",
-  VERIFY: "text-green-400",
-  INCIDENT: "text-red-400",
-  NOTIFICATION: "text-yellow-400",
+const actionBadgeVariant: Record<string, string> = {
+  EVENT: "warning",
+  STATUS: "info",
+  ASSIGN: "info",
+  STATUS_UPDATE: "info",
+  VERIFY: "success",
+  INCIDENT: "critical",
+  NOTIFICATION: "warning",
 };
 
 export default function DemoPage() {
@@ -142,144 +142,229 @@ export default function DemoPage() {
   const progress = Math.round((currentStep / TOTAL_STEPS) * 100);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+      {/* Page Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-white">Demo Control Panel</h1>
-          <p className="text-sm text-gray-500">Walk the full DETECT→REPORT→ASSIGN→ACT→VERIFY→RESOLVE→REOPEN loop step-by-step</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Operations Simulation & Validation
+            </span>
+            <span className="px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-[10px] font-semibold text-amber-800 tracking-wide">
+              SIMULATION / DEMO HARNESS
+            </span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Lifecycle Verification Harness
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Step-by-step verification of municipal issue progression: Detection → Verification → Assignment → Work In Progress → Audit → Resolution → Reopen.
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge text="ALL DATA SIMULATED" variant="medium" />
-          <Badge text={running ? "RUNNING" : "READY"} variant={running ? "critical" : "success"} />
+          <Badge text={running ? "EXECUTING STEP" : "HARNESS READY"} variant={running ? "warning" : "success"} />
         </div>
       </div>
 
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-xs">
+        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-xs font-mono">
           {error}
         </div>
       )}
 
-      {/* SIH MODE banner */}
-      <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-lg p-4 flex items-center justify-between flex-wrap gap-3">
+      {/* SIH Mode Banner */}
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between flex-wrap gap-4">
         <div>
-          <div className="text-sm font-semibold text-cyan-300">SIH MODE — One Click Presentation</div>
-          <div className="text-[11px] text-gray-400 mt-0.5">Cleans the database, seeds demo data, then runs all {TOTAL_STEPS} lifecycle steps automatically.</div>
+          <div className="text-sm font-bold text-slate-900">Automated Sequence — End-to-End Simulation</div>
+          <div className="text-xs text-slate-600 mt-0.5">
+            Initializes isolated mock data and executes all {TOTAL_STEPS} municipal workflow steps sequentially with consensus verification.
+          </div>
         </div>
         <button
           onClick={handleSihMode}
           disabled={running}
-          className="px-4 py-2 bg-cyan-500 text-gray-950 font-semibold rounded text-xs hover:bg-cyan-400 transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-blue-600 text-white font-semibold rounded text-xs hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
         >
-          {running ? "RUNNING..." : "▶ RUN SIH MODE"}
+          {running ? "EXECUTING SIMULATION..." : "RUN FULL SIMULATION SEQUENCE"}
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      {/* Metric & Control Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Data Status */}
         <Card>
           <CardHeader>
-            <span className="text-xs text-gray-400">Data Status</span>
-            <Badge text="SIMULATED" variant="default" />
+            <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Harness State</span>
+            <Badge text="SIMULATED" variant="medium" />
           </CardHeader>
-          <div className="p-4 space-y-2 text-[11px]">
-            <div className="flex justify-between"><span className="text-gray-500">Buses</span><span className="text-gray-200">{demoStatus?.buses ?? 0}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Events</span><span className="text-gray-200">{demoStatus?.events ?? 0}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Issues</span><span className="text-gray-200">{demoStatus?.issues ?? 0}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Incidents</span><span className="text-gray-200">{demoStatus?.incidents ?? 0}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Lifecycle steps</span><span className="text-gray-200">{TOTAL_STEPS}</span></div>
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader><span className="text-xs text-gray-400">Step Controls</span></CardHeader>
-          <div className="p-4 grid grid-cols-2 gap-2">
-            <button onClick={handleSihMode} disabled={running} className="col-span-2 px-3 py-2 bg-cyan-500 text-gray-950 font-medium rounded text-xs hover:bg-cyan-400 transition-colors disabled:opacity-50">
-              SIH MODE
-            </button>
-            <button onClick={handleStep.bind(null, 1)} disabled={running || currentStep >= 1} className="px-3 py-2 bg-cyan-500/20 border border-cyan-500/30 rounded text-cyan-400 text-xs hover:bg-cyan-500/30 transition-colors disabled:opacity-40">
-              START
-            </button>
-            <button onClick={handleNext} disabled={running || currentStep === 0 || currentStep >= TOTAL_STEPS} className="px-3 py-2 bg-blue-500/20 border border-blue-500/30 rounded text-blue-400 text-xs hover:bg-blue-500/30 transition-colors disabled:opacity-40">
-              NEXT
-            </button>
-            <button onClick={handleFastForward} disabled={running} className="px-3 py-2 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 text-xs hover:bg-purple-500/30 transition-colors disabled:opacity-50">
-              FAST-FORWARD
-            </button>
-            <button onClick={handleSeed} disabled={running} className="px-3 py-2 bg-cyan-500/20 border border-cyan-500/30 rounded text-cyan-400 text-xs hover:bg-cyan-500/30 transition-colors disabled:opacity-50">
-              SEED
-            </button>
-            <button onClick={handleReset} disabled={running} className="px-3 py-2 bg-red-500/20 border border-red-500/30 rounded text-red-400 text-xs hover:bg-red-500/30 transition-colors disabled:opacity-50">
-              RESET
-            </button>
-          </div>
-          <div className="px-4 pb-4">
-            <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-              <span>Progress</span>
-              <span>{currentStep}/{TOTAL_STEPS} ({progress}%)</span>
+          <div className="p-4 space-y-2 text-xs">
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-500">Simulated Transit Units</span>
+              <span className="font-semibold text-slate-900 font-mono">{demoStatus?.buses ?? 0}</span>
             </div>
-            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-              <div className="h-full bg-cyan-500 transition-all" style={{ width: `${progress}%` }} />
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-500">Edge Detection Events</span>
+              <span className="font-semibold text-slate-900 font-mono">{demoStatus?.events ?? 0}</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-500">Aggregated Municipal Issues</span>
+              <span className="font-semibold text-slate-900 font-mono">{demoStatus?.issues ?? 0}</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-100">
+              <span className="text-slate-500">Traffic Incidents</span>
+              <span className="font-semibold text-slate-900 font-mono">{demoStatus?.incidents ?? 0}</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-slate-500">Workflow Steps Total</span>
+              <span className="font-semibold text-slate-900 font-mono">{TOTAL_STEPS}</span>
             </div>
           </div>
         </Card>
 
+        {/* Step Controls */}
         <Card>
           <CardHeader>
-            <span className="text-xs text-gray-400">Live WebSocket</span>
+            <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Step Controls</span>
+            <span className="text-[10px] font-mono text-slate-500">STEP {currentStep} / {TOTAL_STEPS}</span>
+          </CardHeader>
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleStep.bind(null, 1)}
+                disabled={running || currentStep >= 1}
+                className="px-3 py-2 bg-white border border-slate-300 rounded text-slate-700 font-medium text-xs hover:bg-slate-50 disabled:opacity-40"
+              >
+                START (STEP 1)
+              </button>
+              <button
+                onClick={handleNext}
+                disabled={running || currentStep === 0 || currentStep >= TOTAL_STEPS}
+                className="px-3 py-2 bg-blue-600 text-white rounded font-medium text-xs hover:bg-blue-700 disabled:opacity-40"
+              >
+                NEXT STEP
+              </button>
+              <button
+                onClick={handleFastForward}
+                disabled={running}
+                className="px-3 py-2 bg-white border border-slate-300 rounded text-slate-700 font-medium text-xs hover:bg-slate-50 disabled:opacity-40"
+              >
+                FAST-FORWARD
+              </button>
+              <button
+                onClick={handleSeed}
+                disabled={running}
+                className="px-3 py-2 bg-white border border-slate-300 rounded text-slate-700 font-medium text-xs hover:bg-slate-50 disabled:opacity-40"
+              >
+                SEED DATA
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={running}
+                className="col-span-2 px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 font-medium rounded text-xs hover:bg-rose-100 disabled:opacity-40"
+              >
+                RESET SIMULATION
+              </button>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+                <span>Execution Progress</span>
+                <span className="font-mono">{progress}%</span>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <div className="h-full bg-blue-600 transition-all duration-300" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Live WebSocket Status */}
+        <Card>
+          <CardHeader>
+            <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">WebSocket Ingestion</span>
             <Badge text={connected ? "CONNECTED" : "OFFLINE"} variant={connected ? "success" : "critical"} />
           </CardHeader>
-          <div className="p-4 space-y-1.5">
-            {messagesKeyed.length === 0 && <p className="text-[10px] text-gray-600">No messages yet — run a step</p>}
+          <div className="p-4 space-y-2">
+            {messagesKeyed.length === 0 && (
+              <p className="text-xs text-slate-400 py-4 text-center italic">
+                Awaiting telemetry / event frames from backend...
+              </p>
+            )}
             {messagesKeyed.map((m, i) => (
-              <div key={i} className="p-1.5 bg-gray-800/50 rounded text-[10px] flex items-center justify-between">
+              <div key={i} className="p-2 bg-slate-50 border border-slate-200 rounded text-xs flex items-center justify-between">
                 <div>
-                  <span className="text-cyan-400">{typeof m.type === "string" ? m.type : "event"}</span>
-                  {typeof m.step === "number" && <span className="text-gray-500 ml-1">step {m.step}</span>}
+                  <span className="font-medium text-slate-900 font-mono">
+                    {typeof m.type === "string" ? m.type : "event"}
+                  </span>
+                  {typeof m.step === "number" && (
+                    <span className="text-slate-500 ml-1.5 font-mono">step {m.step}</span>
+                  )}
                 </div>
-                <Badge text="SIMULATED" variant="default" />
+                <Badge text="SIMULATED" variant="medium" />
               </div>
             ))}
           </div>
         </Card>
       </div>
 
+      {/* Step Log Table */}
       {steps.length > 0 && (
         <Card>
           <CardHeader>
-            <span className="text-sm font-medium text-gray-300">Lifecycle Steps</span>
             <div className="flex items-center gap-2">
-              <Badge text={`${steps.length}/${TOTAL_STEPS} executed`} variant={steps.length === TOTAL_STEPS ? "success" : "default"} />
-              <Badge text="SIMULATED" variant="medium" />
+              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Executed Sequence Ledger</span>
+              <Badge text={`${steps.length}/${TOTAL_STEPS} EXECUTED`} variant={steps.length === TOTAL_STEPS ? "success" : "info"} />
             </div>
+            <Badge text="SIMULATION AUDIT" variant="medium" />
           </CardHeader>
-          <div className="p-4 space-y-1.5 max-h-[500px] overflow-y-auto">
-            {steps.map((step) => (
-              <div key={step.step} className={`flex items-start gap-3 p-2 rounded ${step.step === currentStep ? "bg-cyan-500/10 border border-cyan-500/30" : "bg-gray-800/30"}`}>
-                <span className="text-[10px] text-gray-600 w-7 shrink-0">{step.step}.</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-xs font-medium ${actionColors[step.action] || "text-gray-400"}`}>{step.action}</span>
-                    <span className="text-xs text-gray-300">{step.message}</span>
-                    <Badge text={(step.source || "SIMULATED").toUpperCase()} variant="default" />
-                  </div>
-                  {(step.event_id || step.issue_id || step.incident_id) && (
-                    <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                      {step.event_id && <span className="rounded bg-gray-800 px-1.5 py-0.5">Event {step.event_id}</span>}
-                      {step.incident_id && <span className="rounded bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 text-red-400">Incident {step.incident_id} · {step.incident_status || "DETECTED"}</span>}
-                      {step.issue_id && <span className="rounded bg-gray-800 px-1.5 py-0.5">Issue {step.issue_id} · {step.issue_status || "—"}</span>}
-                    </div>
-                  )}
-                  {step.verification && (
-                    <div className="text-[10px] text-green-500/70 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                      <Badge text="VERIFICATION" variant="success" />
-                      <span>Result: {step.verification.result}</span>
-                      <span>Clear: {step.verification.unique_clear_count}</span>
-                      <span>Detected: {step.verification.unique_detected_count}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+                  <th className="py-2.5 px-4 w-14 font-mono">Step</th>
+                  <th className="py-2.5 px-4 w-28">Action</th>
+                  <th className="py-2.5 px-4">Message / Description</th>
+                  <th className="py-2.5 px-4 w-40">Entity Link</th>
+                  <th className="py-2.5 px-4 w-48">Verification</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {steps.map((step) => {
+                  const isCurrent = step.step === currentStep;
+                  return (
+                    <tr key={step.step} className={isCurrent ? "bg-blue-50/50 font-medium" : "hover:bg-slate-50/50"}>
+                      <td className="py-2.5 px-4 font-mono text-slate-500">#{step.step}</td>
+                      <td className="py-2.5 px-4">
+                        <Badge text={step.action} variant={actionBadgeVariant[step.action] || "default"} />
+                      </td>
+                      <td className="py-2.5 px-4 text-slate-800">{step.message}</td>
+                      <td className="py-2.5 px-4 font-mono text-[11px] text-slate-600">
+                        {step.issue_id && (
+                          <span className="inline-block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded mr-1">
+                            Issue: {step.issue_id.slice(0, 8)}
+                          </span>
+                        )}
+                        {step.incident_id && (
+                          <span className="inline-block px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded">
+                            Inc: {step.incident_id.slice(0, 8)}
+                          </span>
+                        )}
+                        {!step.issue_id && !step.incident_id && <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="py-2.5 px-4 text-[11px]">
+                        {step.verification ? (
+                          <span className="text-emerald-700 font-medium">
+                            {step.verification.result || "Verified"} (clear: {step.verification.unique_clear_count}, det: {step.verification.unique_detected_count})
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </Card>
       )}

@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Float, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.database.base import BaseModel, TimestampMixin
@@ -49,3 +49,4 @@ class Incident(BaseModel, TimestampMixin):
     status: Mapped[str] = mapped_column(
         String(30), default=IncidentStatus.DETECTED.value, nullable=False
     )
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

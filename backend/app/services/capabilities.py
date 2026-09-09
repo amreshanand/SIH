@@ -1,19 +1,17 @@
 """Single source of truth for AI/edge capability status.
 
-UrbanSense AI must NEVER claim "AI ONLINE" when everything is mock/simulated.
-This module computes a truthful per-capability status based on configuration
-and, where possible, whether the backing resource actually exists (e.g. a YOLO
-weights file). UIs should render these badges directly.
+UrbanSense AI is a real-inference platform: there is no mock/simulated
+detection mode. This module computes a truthful per-capability status based on
+configuration and whether the backing YOLO weights actually exist on disk.
+
+The only remaining "simulated" capability is GPS, and only when explicitly
+configured as a fallback — that is reported honestly with simulated=True.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
 from backend.app.core.config import settings
-
-
-def _is_real(model_mode: str) -> bool:
-    return str(model_mode).lower() == "real"
 
 
 def _model_present(path: str) -> bool:
@@ -24,59 +22,73 @@ def _model_present(path: str) -> bool:
 
 
 def capability_status() -> dict:
-    real = _is_real(settings.model_mode)
-    vehicle_weights = _model_present(settings.yolo_model_path) if real else False
+    vehicle_weights = _model_present(settings.yolo_model_path)
+    defect_weights = _model_present(settings.road_damage_model_path)
 
     def vehicle_status():
-        if not real:
-            return {"mode": "MOCK", "detail": "deterministic simulated detections", "live": False}
+        if not settings.yolo_model_path:
+            return {"mode": "UNAVAILABLE", "detail": "model path not configured", "live": False}
         if not vehicle_weights:
-            return {"mode": "UNAVAILABLE", "detail": "real requested but weights not found", "live": False}
+            return {"mode": "UNAVAILABLE", "detail": f"weights not found: {settings.yolo_model_path}", "live": False}
         return {"mode": "REAL", "detail": f"YOLO {settings.yolo_model_path}", "live": True}
 
     def defect_status():
-        if not real:
-            return {"mode": "MOCK", "detail": "deterministic mock pothole cadence", "live": False}
-        if not _model_present(settings.road_damage_model_path):
-            return {"mode": "UNAVAILABLE", "detail": "real requested but weights not found", "live": False}
+        if not settings.road_damage_model_path:
+            return {"mode": "UNAVAILABLE", "detail": "model path not configured", "live": False}
+        if not defect_weights:
+            return {"mode": "UNAVAILABLE", "detail": f"weights not found: {settings.road_damage_model_path}", "live": False}
         return {"mode": "REAL", "detail": f"YOLO {settings.road_damage_model_path}", "live": True}
 
     def ocr_status():
         if not settings.ocr_enabled:
             return {"mode": "OFF", "detail": "ocr disabled", "live": False}
-        if str(settings.ocr_provider).lower() == "mock":
-            return {"mode": "MOCK", "detail": "deterministic plate text", "live": False}
+        if str(settings.ocr_provider).lower() in ("mock", "off"):
+            return {"mode": "OFF", "detail": "no real ocr provider configured", "live": False}
         return {"mode": str(settings.ocr_provider).upper(), "detail": f"{settings.ocr_provider} provider", "live": True}
 
     def gps_status():
-        if str(settings.gps_mode).lower() == "phone":
-            return {"mode": "PHONE", "detail": "phone provider", "live": True, "simulated": False}
-        return {"mode": "SIMULATED", "detail": "simulated route provider", "live": False, "simulated": True}
+        if str(settings.gps_mode).lower() == "simulated":
+            return {
+                "mode": "SIMULATED", "detail": "simulated route fallback",
+                "live": False, "simulated": True,
+            }
+        # phone / nmea are real.
+        return {
+            "mode": str(settings.gps_mode).upper(),
+            "detail": "real GPS source",
+            "live": True,
+            "simulated": False,
+        }
 
     return {
         "vehicle_detection": vehicle_status(),
         "road_defect_detection": defect_status(),
         "tracking": {
-            "mode": "REAL" if real else "MOCK",
-            "detail": "bytetrack (IoU-matched)" if real else "iou mock tracker",
-            "live": real,
+            "mode": "REAL",
+            "detail": "bytetrack (persistent IDs)",
+            "live": vehicle_weights,
         },
         "ocr": ocr_status(),
         "pedestrian_detection": {
-            "mode": "REAL" if real else "MOCK",
+            "mode": "REAL",
             "detail": "person class + proximity risk",
-            "live": real,
+            "live": vehicle_weights,
         },
         "incident_detection": {
-            "mode": "REAL" if real else "MOCK",
-            "detail": "explainable rule-based",
-            "live": real,
+            "mode": "REAL",
+            "detail": "rule-based on tracked motion",
+            "live": vehicle_weights,
         },
         "gps": gps_status(),
     }
 
 
 def pipeline_mode() -> str:
-    """Overall pipeline label: LIVE vs SIMULATED."""
-    real = _is_real(settings.model_mode)
-    return "LIVE" if real else "SIMULATED"
+    """Overall pipeline label.
+
+    Because detection is always real inference when configured, the pipeline is
+    LIVE unless the YOLO weights are missing.
+    """
+    if _model_present(settings.yolo_model_path) or _model_present(settings.road_damage_model_path):
+        return "LIVE"
+    return "UNAVAILABLE"

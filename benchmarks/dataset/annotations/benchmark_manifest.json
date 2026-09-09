@@ -1,0 +1,67 @@
+{
+  "benchmark_version": "2.1.0",
+  "target_metrics": {
+    "min_precision": 0.90,
+    "max_false_positive_rate": 0.05
+  },
+  "videos": [
+    {
+      "video_id": "POS-PUNE-01",
+      "category": "positive",
+      "description": "Pune FC Road - Pothole and alligator crack zone under overcast daylight",
+      "url": "https://www.youtube.com/watch?v=sample_pune_potholes",
+      "resolution": "1080p",
+      "duration_sec": 180,
+      "annotations": [
+        { "start_time": "00:14", "end_time": "00:19", "defect_type": "POTHOLE", "gps": [18.5204, 73.8567] },
+        { "start_time": "01:05", "end_time": "01:11", "defect_type": "ALLIGATOR_CRACK", "gps": [18.5245, 73.8592] },
+        { "start_time": "02:22", "end_time": "02:28", "defect_type": "POTHOLE", "gps": [18.5281, 73.8615] }
+      ]
+    },
+    {
+      "video_id": "NEG-SHADOW-01",
+      "category": "negative",
+      "description": "Tree-lined boulevard with sharp dynamic branch shadows across road",
+      "url": "https://www.youtube.com/watch?v=sample_shadows_drive",
+      "resolution": "1080p",
+      "duration_sec": 180,
+      "annotations": [
+        { "start_time": "00:00", "end_time": "03:00", "defect_type": "NONE", "expected": "ZERO_DETECTIONS" }
+      ]
+    },
+    {
+      "video_id": "NEG-PATCH-01",
+      "category": "negative",
+      "description": "Freshly repaired dark bituminous patch over-banding and speed breakers",
+      "url": "https://www.youtube.com/watch?v=sample_patch_road",
+      "resolution": "720p",
+      "duration_sec": 180,
+      "annotations": [
+        { "start_time": "00:00", "end_time": "03:00", "defect_type": "NONE", "expected": "ZERO_DETECTIONS" }
+      ]
+    },
+    {
+      "video_id": "NEG-MANHOLE-01",
+      "category": "negative",
+      "description": "City avenue with flush manhole covers and clean pedestrian zebra markings",
+      "url": "https://www.youtube.com/watch?v=sample_manhole_markings",
+      "resolution": "1080p",
+      "duration_sec": 180,
+      "annotations": [
+        { "start_time": "00:00", "end_time": "03:00", "defect_type": "NONE", "expected": "ZERO_DETECTIONS" }
+      ]
+    },
+    {
+      "video_id": "MIXED-TRANSIT-01",
+      "category": "mixed",
+      "description": "Live municipal bus dashcam running through mixed arterial traffic",
+      "url": "https://www.youtube.com/watch?v=sample_bus_dashcam",
+      "resolution": "1080p",
+      "duration_sec": 240,
+      "annotations": [
+        { "start_time": "00:45", "end_time": "00:51", "defect_type": "TRANSVERSE_CRACK", "gps": [18.5312, 73.8640] },
+        { "start_time": "02:10", "end_time": "02:17", "defect_type": "POTHOLE", "gps": [18.5398, 73.8711] }
+      ]
+    }
+  ]
+}

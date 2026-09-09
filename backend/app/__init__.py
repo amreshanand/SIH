@@ -7,19 +7,44 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.core.config import settings
+from backend.app.core.logging_setup import configure_logging, get_logger
+
+log = get_logger("urbansense")
+
+configure_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup / shutdown lifecycle."""
     from backend.app.core.config import validate_config
+
     validate_config()
-    print(f"[BOOT] {settings.project_name} backend starting...")
-    print(f"[BOOT] Debug: {settings.debug}")
-    print(f"[BOOT] Demo mode: {settings.demo_mode}")
-    print(f"[BOOT] Database: {settings.database_url.split('@')[-1] if '@' in settings.database_url else settings.database_url}")
+    import os
+    yolo_found = os.path.exists(settings.yolo_model_path)
+    road_damage_found = os.path.exists(settings.road_damage_model_path)
+
+    log.info_ctx(
+        "backend starting",
+        project=settings.project_name,
+        debug=settings.debug,
+        demo_mode=settings.demo_mode,
+        database=(settings.database_url.split("@")[-1] if "@" in settings.database_url else settings.database_url),
+        production=settings.production,
+        yolo_model="ready" if yolo_found else "missing",
+        road_damage_model="ready" if road_damage_found else "fallback_active",
+    )
+
+    if not road_damage_found:
+        log.warning(
+            "Road damage model weights not found at '%s'. Edge sensing will operate in heuristic/fallback mode until custom weights are placed.",
+            settings.road_damage_model_path,
+        )
+    if not yolo_found:
+        log.warning("YOLO vehicle model weights not found at '%s'.", settings.yolo_model_path)
+
     yield
-    print("[SHUTDOWN] Backend shutting down...")
+    log.info("backend shutting down")
 
 
 def create_app() -> FastAPI:

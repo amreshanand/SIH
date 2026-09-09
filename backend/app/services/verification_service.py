@@ -105,11 +105,13 @@ async def process_verification(
 
     if issue.status == "RESOLVED" and unique_detected >= settings.verification_reopen_threshold:
         issue.status = "REOPENED"
+        issue.consensus_level = "REOPENED"
         record.result = "REOPENED"
         transitioned = True
-    elif issue.status in ("OPEN", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"):
+    elif issue.status in ("OPEN", "DETECTED", "CONFIRMED", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"):
         if unique_clear >= threshold:
             issue.status = "RESOLVED"
+            issue.consensus_level = "RESOLVED_VERIFIED"
             record.result = "RESOLVED"
             transitioned = True
         elif unique_detected >= 2 and issue.status == "OPEN":

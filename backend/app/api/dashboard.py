@@ -21,9 +21,11 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
         select(func.count(Event.id)).where(Event.created_at >= today_start)
     )).scalar() or 0
 
+    from backend.app.models import TrafficRecord
+
     open_issues = (await db.execute(
         select(func.count(Issue.id)).where(Issue.status.in_(
-            ["OPEN", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"]
+            ["OPEN", "DETECTED", "CONFIRMED", "ASSIGNED", "IN_PROGRESS", "PENDING_VERIFICATION", "REOPENED"]
         ))
     )).scalar() or 0
 
@@ -31,7 +33,11 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> DashboardSt
         select(func.count(Incident.id)).where(Incident.severity == "CRITICAL")
     )).scalar() or 0
 
-    traffic_hotspots = 0
+    traffic_hotspots = (await db.execute(
+        select(func.count(func.distinct(TrafficRecord.road_segment))).where(
+            TrafficRecord.congestion_score >= 60
+        )
+    )).scalar() or 0
 
     resolved_issues = (await db.execute(
         select(func.count(Issue.id)).where(Issue.status == "RESOLVED")

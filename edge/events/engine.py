@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import math
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from edge.detection.vehicle_detector import Detection
+from edge.inference.result import InferenceResult
 from edge.gps.base import GPSData
 from edge.utils.logger import log
 
@@ -44,23 +43,31 @@ class Event:
 
 
 class EventEngine:
-    DEFAULT_SEVERITY_MAP = {
-        "pothole": "HIGH",
-        "waterlogging": "HIGH",
-        "damaged_road": "HIGH",
-        "road_crack": "MEDIUM",
-        "missing_sign": "MEDIUM",
-        "missing_crossing": "MEDIUM",
-        "missing_divider": "MEDIUM",
-        "damaged_sign": "MEDIUM",
-        "street_light": "MEDIUM",
-        "pedestrian_risk": "HIGH",
-        "rash_driving": "CRITICAL",
-        "hit_and_run": "CRITICAL",
-        "collision": "CRITICAL",
-    }
+    """Emits infrastructure events from temporally-confirmed real detections.
+
+    Design (real-inference only):
+    * Temporal confirmation — an event is emitted only when the same class is
+      observed across ``min_observations`` frames within ``temporal_window``.
+    * Tracking-aware dedup — a road defect that keeps producing detections is
+      reported once per cluster/period; stable track IDs prevent duplicate
+      emergencies for the same physical object.
+
+    There is no mocked event source. All events derive from Detection objects
+    produced by the real inference engine.
+    """
 
     SEVERITY_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+    DEFAULT_SEVERITY_MAP = {
+        "pothole": "HIGH",
+        "longitudinal_crack": "MEDIUM",
+        "transverse_crack": "MEDIUM",
+        "alligator_crack": "HIGH",
+        "edge_break": "HIGH",
+        "rutting": "MEDIUM",
+        "surface_wear": "LOW",
+        "patch_failure": "MEDIUM",
+        "utility_cover_damage": "CRITICAL",
+    }
 
     def __init__(
         self,
@@ -77,17 +84,21 @@ class EventEngine:
         self.temporal_window = temporal_window
         self.min_observations = min_observations
         self.cluster_distance_meters = cluster_distance_meters
+        # class -> list of observations (confidence, timestamp, area_ratio).
         self._pending: dict[str, list[dict[str, Any]]] = {}
+        # class -> last emission time (cooldown so persistent defects aren't
+        # re-reported every min_observations frames).
         self._last_emit: dict[str, float] = {}
         self._event_counter = 0
 
     def process_detection(
         self,
-        detection: Detection,
+        detection: InferenceResult,
         gps: GPSData | None,
-        frame_metadata: dict[str, Any] | None = None,
         frame_width: int = 640,
         frame_height: int = 480,
+        bus_count: int = 1,
+        existing_severity: str | None = None,
     ) -> Event | None:
         if detection.confidence < self.min_confidence:
             return None
@@ -95,75 +106,77 @@ class EventEngine:
         key = detection.class_name
         now = time.time()
 
-        if key not in self._pending:
-            self._pending[key] = []
-
-        self._pending[key].append({
-            "confidence": detection.confidence,
-            "timestamp": now,
-            "bbox": detection.bbox,
-            "area": detection.area,
-        })
+        observations = self._pending.setdefault(key, [])
+        observations.append(
+            {
+                "confidence": detection.confidence,
+                "timestamp": now,
+                "bbox": detection.bbox,
+                "area": detection.area,
+            }
+        )
 
         cutoff = now - self.temporal_window
-        self._pending[key] = [o for o in self._pending[key] if o["timestamp"] > cutoff]
+        self._pending[key] = [o for o in observations if o["timestamp"] > cutoff]
 
-        if len(self._pending[key]) >= self.min_observations:
-            # Cooldown: do not re-report the same detection class until the
-            # temporal window has elapsed since the last emission. Without this
-            # a continuously-present object floods events every min_observations
-            # frames.
-            if now - self._last_emit.get(key, 0.0) < self.temporal_window:
-                # Discard the accumulated batch so a long-lived object doesn't
-                # keep stacking observations during cooldown. Otherwise the
-                # next emission would report observation_count far above
-                # min_observations and silently inflate its severity.
-                self._pending[key] = []
-                return None
+        if len(self._pending[key]) < self.min_observations:
+            return None
 
-            observations = self._pending[key]
-            avg_conf = sum(o["confidence"] for o in observations) / len(observations)
-            self._event_counter += 1
-            event_id = f"EVT-{int(time.time())}-{self._event_counter:04d}"
-
-            max_area_ratio = max(
-                (o["area"] / (frame_width * frame_height)) for o in observations
-            )
-            severity = self.score_severity(
-                class_name=detection.class_name,
-                confidence=avg_conf,
-                area_ratio=max_area_ratio,
-                observation_count=len(observations),
-            )
-
-            lat = gps.latitude if gps else 0.0
-            lon = gps.longitude if gps else 0.0
-
-            event = Event(
-                event_id=event_id,
-                event_type=detection.class_name.upper(),
-                bus_id=self.bus_id,
-                camera_id=self.camera_id,
-                severity=severity,
-                confidence=avg_conf,
-                latitude=lat,
-                longitude=lon,
-                metadata={
-                    "observations": len(observations),
-                    "bbox": detection.bbox,
-                    "gps_source": gps.source if gps else "UNKNOWN",
-                    "area_ratio": round(max_area_ratio, 4),
-                    **(frame_metadata or {}),
-                },
-            )
-
+        # Cooldown: do not re-emit the same class until the temporal window has
+        # elapsed since the last emission.
+        if now - self._last_emit.get(key, 0.0) < self.temporal_window:
             self._pending[key] = []
-            self._last_emit[key] = now
-            log.info("[EVENT] %s detected (conf=%.2f, sev=%s, obs=%d)",
-                     event.event_type, avg_conf, severity, len(observations))
-            return event
+            return None
 
-        return None
+        batch = self._pending[key]
+        avg_conf = sum(o["confidence"] for o in batch) / len(batch)
+        max_area_ratio = max(
+            (o["area"] / (frame_width * frame_height)) for o in batch
+        )
+        severity = self.score_severity(
+            class_name=detection.class_name,
+            confidence=avg_conf,
+            area_ratio=max_area_ratio,
+            observation_count=len(batch),
+            bus_count=bus_count,
+            existing_severity=existing_severity,
+        )
+
+        self._event_counter += 1
+        event_id = f"EVT-{int(time.time())}-{self._event_counter:04d}"
+        lat = gps.latitude if gps else 0.0
+        lon = gps.longitude if gps else 0.0
+
+        event = Event(
+            event_id=event_id,
+            event_type=detection.class_name.upper(),
+            bus_id=self.bus_id,
+            camera_id=self.camera_id,
+            severity=severity,
+            confidence=avg_conf,
+            latitude=lat,
+            longitude=lon,
+            metadata={
+                "observations": len(batch),
+                "bbox": detection.bbox,
+                "track_id": detection.track_id,
+                "source_model": detection.source_model,
+                "gps_source": gps.source if gps else "UNKNOWN",
+                "area_ratio": round(max_area_ratio, 4),
+            },
+        )
+
+        self._pending[key] = []
+        self._last_emit[key] = now
+        log.info(
+            "[EVENT] %s confirmed (conf=%.2f, sev=%s, obs=%d, track=%s)",
+            event.event_type,
+            avg_conf,
+            severity,
+            len(batch),
+            detection.track_id,
+        )
+        return event
 
     def score_severity(
         self,
@@ -171,56 +184,33 @@ class EventEngine:
         confidence: float,
         area_ratio: float,
         observation_count: int,
+        bus_count: int = 1,
+        existing_severity: str | None = None,
     ) -> str:
+        # The class's base severity is the floor — a confirmed real detection of
+        # e.g. a pothole should never be downgraded below HIGH just because the
+        # defect box is small. Confidence, coverage and observation count can
+        # only raise (never lower) the severity.
         base = self.DEFAULT_SEVERITY_MAP.get(class_name, "MEDIUM")
-        base_level = self.SEVERITY_ORDER.get(base, 1)
-
-        adjusted = base_level
+        if existing_severity in self.SEVERITY_ORDER and (
+            self.SEVERITY_ORDER[existing_severity] > self.SEVERITY_ORDER[base]
+        ):
+            # A backend-confirmed open issue already raised the bar for this
+            # location (e.g. reported by another bus); never downgrade it.
+            base = existing_severity
+        level = self.SEVERITY_ORDER.get(base, 1)
 
         if confidence >= 0.92:
-            adjusted = min(adjusted + 1, 3)
-        elif confidence < 0.6:
-            adjusted = max(adjusted - 1, 0)
-
+            level = min(level + 1, 3)
         if area_ratio > 0.15:
-            adjusted = min(adjusted + 1, 3)
-        elif area_ratio < 0.01:
-            adjusted = max(adjusted - 1, 0)
-
+            level = min(level + 1, 3)
         if observation_count >= 4:
-            adjusted = min(adjusted + 1, 3)
+            level = min(level + 1, 3)
+        # Cross-bus confirmation: multiple distinct buses reporting the same
+        # location is strong evidence the defect is real and severe.
+        if bus_count >= 2:
+            level = min(level + 1, 3)
+        if bus_count >= 3:
+            level = min(level + 1, 3)
 
-        severity_map = {0: "LOW", 1: "MEDIUM", 2: "HIGH", 3: "CRITICAL"}
-        return severity_map[adjusted]
-
-    def process_traffic(
-        self, vehicle_count: int, vehicle_dist: dict[str, int], gps: GPSData,
-        congestion_threshold: int = 5,
-    ) -> Event | None:
-        if vehicle_count < congestion_threshold:
-            return None
-
-        now = time.time()
-        if now - self._last_emit.get("traffic", 0.0) < self.temporal_window:
-            return None
-
-        congestion = min(100, int(vehicle_count * 5))
-
-        self._event_counter += 1
-        self._last_emit["traffic"] = now
-        return Event(
-            event_id=f"EVT-TRAFFIC-{int(time.time())}-{self._event_counter:04d}",
-            event_type="TRAFFIC_CONGESTION",
-            bus_id=self.bus_id,
-            camera_id=self.camera_id,
-            severity="MEDIUM" if congestion < 60 else "HIGH",
-            confidence=0.9,
-            latitude=gps.latitude,
-            longitude=gps.longitude,
-            metadata={
-                "vehicle_count": vehicle_count,
-                "vehicle_distribution": vehicle_dist,
-                "congestion_score": congestion,
-                "gps_source": gps.source,
-            },
-        )
+        return {0: "LOW", 1: "MEDIUM", 2: "HIGH", 3: "CRITICAL"}[level]

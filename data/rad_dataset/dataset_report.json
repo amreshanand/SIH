@@ -1,0 +1,62 @@
+{
+  "dataset_name": "RAD \u2014 Road Anomaly Detection (rohitsuresh15)",
+  "archive_size_mb": 658.0,
+  "total_frames_extracted": 2878,
+  "discarded_files_count": 0,
+  "discarded_files": [],
+  "unique_source_videos": 162,
+  "split_summary": {
+    "train_frames": 1965,
+    "valid_frames": 533,
+    "test_frames": 380,
+    "train_videos": 113,
+    "valid_videos": 24,
+    "test_videos": 25
+  },
+  "class_distribution": {
+    "0": {
+      "name": "HMV",
+      "train": 485,
+      "valid": 97,
+      "test": 65,
+      "total": 647
+    },
+    "1": {
+      "name": "LMV",
+      "train": 1498,
+      "valid": 460,
+      "test": 200,
+      "total": 2158
+    },
+    "2": {
+      "name": "Pedestrian",
+      "train": 376,
+      "valid": 105,
+      "test": 80,
+      "total": 561
+    },
+    "3": {
+      "name": "RoadDamages",
+      "train": 680,
+      "valid": 158,
+      "test": 132,
+      "total": 970
+    },
+    "4": {
+      "name": "SpeedBump",
+      "train": 41,
+      "valid": 8,
+      "test": 21,
+      "total": 70
+    },
+    "5": {
+      "name": "UnsurfacedRoad",
+      "train": 73,
+      "valid": 7,
+      "test": 18,
+      "total": 98
+    }
+  },
+  "anti_leakage_verified": true,
+  "yaml_config": "data/rad_dataset/rad_data.yaml"
+}

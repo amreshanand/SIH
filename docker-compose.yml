@@ -68,6 +68,35 @@ services:
     networks:
       - demo-network
 
+  edge:
+    build:
+      context: .
+      dockerfile: Dockerfile.edge
+    container_name: urbansense-edge
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - BACKEND_API_KEY=${EDGE_API_KEY:-urbansense-edge-key-change-me}
+      - GPS_MODE=${GPS_MODE:-phone}
+      - GPS_NMEA_DEVICE=${GPS_NMEA_DEVICE:-/dev/ttyUSB0}
+      - GPS_NMEA_HOST=${GPS_NMEA_HOST:-}
+      - GPS_NMEA_PORT=${GPS_NMEA_PORT:-}
+    volumes:
+      # Expose a serial GPS receiver into the container (NMEA).
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    depends_on:
+      backend:
+        condition: service_started
+    env_file:
+      - .env
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - backend-net
+      - demo-network
+
 volumes:
   postgres_data:
 

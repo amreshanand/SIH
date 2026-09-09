@@ -5,12 +5,13 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select, text, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.api.deps import require_admin
+from backend.app.core.config import settings
 from backend.app.database.session import get_db
 from backend.app.models import (
     Bus, Camera, Event, Issue, User, GPSPoint, IssueEvent, VerificationRecord,
@@ -23,6 +24,24 @@ from backend.app.services.incident_service import create_incident_from_event
 from backend.app.websocket.manager import ws_manager
 
 router = APIRouter(prefix="/demo", tags=["Demo"])
+
+
+async def _demo_enabled() -> None:
+    """Demo endpoints are disabled in production.
+
+    They are scripted deterministic demonstrations intended only for SIH
+    presentations. When DEMO_MODE=false (production default) every route in
+    this router returns 403. This does NOT affect real edge ingestion, which
+    goes through /api/events.
+    """
+    if not settings.demo_mode:
+        raise HTTPException(
+            status_code=403,
+            detail="Demo API is disabled. Set DEMO_MODE=true to enable scripted demonstrations.",
+        )
+
+
+demo_guard = Depends(_demo_enabled)
 
 DEMO_LIFECYCLE = [
     {
@@ -372,17 +391,20 @@ async def _execute_step(db: AsyncSession, step_def: dict, ctx: StepContext) -> d
 
 
 @router.post("/seed")
-async def seed_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)) -> dict:
+async def seed_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin),
+                    _g: None = demo_guard) -> dict:
     result = await seed_demo_data(db)
     return {"status": "seeded", **result}
 
 
 @router.post("/reset")
-async def reset_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)) -> dict:
+async def reset_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin),
+                     _g: None = demo_guard) -> dict:
     await db.execute(text(
         "TRUNCATE verification_records, notifications, audit_logs, issue_events, "
-        "issue_assignments, evidence, incidents, vehicle_tracks, traffic_records, "
-        "events, issues, cameras, buses, routes, gps_points CASCADE"
+        "issue_assignments, issue_resolutions, evidence, incidents, vehicle_tracks, "
+        "traffic_records, events, issues, cameras, sensing_sessions, buses, "
+        "routes, gps_points CASCADE"
     ))
     await db.execute(text("DELETE FROM users WHERE username != 'admin'"))
     await db.commit()
@@ -390,9 +412,10 @@ async def reset_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(
 
 
 @router.post("/sih")
-async def sih_mode(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin)) -> dict:
+async def sih_mode(db: AsyncSession = Depends(get_db), _admin: User = Depends(require_admin),
+                   _g: None = demo_guard) -> dict:
     """One-click SIH MODE: clean database, seed demo data, run the 21-step lifecycle."""
-    await reset_demo(db=db, _admin=_admin)
+    await reset_demo(db=db, _admin=_admin, _g=None)
     seed_result = await seed_demo_data(db)
     ctx = await _load_context(db)
     steps_completed = []

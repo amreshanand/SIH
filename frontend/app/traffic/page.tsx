@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Card, CardHeader } from "@/components/ui/Card";
+import { Card, CardHeader, KpiCard } from "@/components/ui/Card";
 import { Event, TrafficRecord } from "@/types";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -57,65 +57,66 @@ export default function TrafficPage() {
   const totalVolume = trafficRecords.reduce((s, r) => s + (r.vehicle_count || 0), 0);
 
   if (loading) {
-    return <div className="p-6 text-gray-500 text-sm">Loading traffic data...</div>;
+    return <div className="p-6 text-slate-500 text-xs font-mono">Loading traffic telemetry...</div>;
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Traffic Analytics</h1>
-        <p className="text-sm text-gray-500">Real-time traffic density and congestion monitoring</p>
+    <div className="p-6 space-y-6 max-w-7xl">
+      <div className="border-b border-slate-200 pb-4">
+        <h1 className="text-xl font-bold text-slate-900">Traffic Density & Corridor Analytics</h1>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Real-time vehicular counts, corridor speeds, and automated bottleneck detection
+        </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: "Avg Speed", value: `${avgSpeed} km/h`, color: "text-cyan-400" },
-          { label: "Vehicle Volume", value: `${totalVolume}`, color: "text-blue-400" },
-          { label: "Congestion Index", value: `${avgCongestion}/100`, color: "text-orange-400" },
-          { label: "Hotspots", value: `${congestionByType.length}`, color: "text-purple-400" },
-        ].map((kpi) => (
-          <Card key={kpi.label}>
-            <div className="p-4">
-              <div className="text-[10px] uppercase tracking-widest text-gray-500">{kpi.label}</div>
-              <div className={`text-xl font-bold mt-1 ${kpi.color}`}>{kpi.value}</div>
-            </div>
-          </Card>
-        ))}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="Average Speed" value={`${avgSpeed} km/h`} color="blue" subtitle="Corridor transit telemetry" />
+        <KpiCard label="Vehicle Volume" value={`${totalVolume}`} color="blue" subtitle="Observed vehicle count" />
+        <KpiCard label="Congestion Index" value={`${avgCongestion} / 100`} color="amber" subtitle="Network friction rating" />
+        <KpiCard label="Active Bottlenecks" value={`${congestionByType.length}`} color="red" subtitle="Congested road segments" />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Event Distribution by Hour</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Congestion Events by Hour (24h Profile)
+            </span>
+          </CardHeader>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={hourlyTraffic}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#9ca3af" }} interval={2} />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "6px", fontSize: "11px" }} />
-                <Area type="monotone" dataKey="events" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.2} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#64748b" }} interval={2} />
+                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
+                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
+                <Area type="monotone" dataKey="events" stroke="#2563eb" fill="#2563eb" fillOpacity={0.15} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Congestion by Zone (from heatmap)</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Corridor Congestion Index
+            </span>
+          </CardHeader>
           <div className="p-4 h-64">
             {congestionByType.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-600 text-xs">
-                No heatmap data — run demo seed first
+              <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+                No corridor telemetry logged yet.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={congestionByType} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                  <YAxis dataKey="type" type="category" tick={{ fontSize: 9, fill: "#9ca3af" }} width={90} />
-                  <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "6px", fontSize: "11px" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis type="number" tick={{ fontSize: 9, fill: "#64748b" }} />
+                  <YAxis dataKey="type" type="category" tick={{ fontSize: 9, fill: "#64748b" }} width={110} />
+                  <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
                   <Bar dataKey="score" radius={[0, 4, 4, 0]}>
                     {congestionByType.map((entry, i) => (
-                      <Cell key={i} fill={entry.score > 70 ? "#ef4444" : entry.score > 40 ? "#eab308" : "#22c55e"} />
+                      <Cell key={i} fill={entry.score > 70 ? "#dc2626" : entry.score > 40 ? "#d97706" : "#16a34a"} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -125,50 +126,71 @@ export default function TrafficPage() {
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Events by Hour</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Hourly Event Frequency
+            </span>
+          </CardHeader>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hourlyTraffic}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#9ca3af" }} interval={2} />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "6px", fontSize: "11px" }} />
-                <Line type="monotone" dataKey="events" stroke="#22c55e" strokeWidth={2} dot={{ r: 2 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#64748b" }} interval={2} />
+                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
+                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
+                <Line type="monotone" dataKey="events" stroke="#16a34a" strokeWidth={2} dot={{ r: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card>
-          <CardHeader><span className="text-sm font-medium text-gray-300">Confidence Trend</span></CardHeader>
+          <CardHeader>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Mean Detection Confidence Trend
+            </span>
+          </CardHeader>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hourlyTraffic}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="hour" tick={{ fontSize: 8, fill: "#9ca3af" }} interval={2} />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                <Tooltip contentStyle={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "6px", fontSize: "11px" }} />
-                <Line type="monotone" dataKey="avgConfidence" stroke="#f97316" strokeWidth={2} dot={{ r: 2 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#64748b" }} interval={2} />
+                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
+                <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
+                <Line type="monotone" dataKey="avgConfidence" stroke="#d97706" strokeWidth={2} dot={{ r: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </Card>
       </div>
 
+      {/* Corridor Breakdown */}
       <Card>
-        <CardHeader><span className="text-xs text-gray-400">Traffic Hotspots</span></CardHeader>
-        <div className="p-4 grid grid-cols-3 gap-3">
+        <CardHeader>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+            High Congestion Corridors
+          </span>
+        </CardHeader>
+        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
           {congestionByType.filter((c) => c.score > 40).length === 0 && (
-            <div className="text-gray-600 text-xs">No hotspots detected — run demo seed to populate</div>
+            <div className="text-slate-500 text-xs col-span-3 text-center py-4">
+              All monitored corridors operating within normal flow parameters (index ≤ 40).
+            </div>
           )}
           {congestionByType.filter((c) => c.score > 40).map((zone) => (
-            <div key={zone.type} className="p-3 bg-gray-800/50 rounded">
-              <div className="text-xs font-medium text-white">{zone.type}</div>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${zone.score}%`, backgroundColor: zone.score > 70 ? "#ef4444" : "#eab308" }} />
+            <div key={zone.type} className="p-3 bg-slate-50 rounded border border-slate-200">
+              <div className="text-xs font-bold text-slate-900">{zone.type}</div>
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${zone.score}%`,
+                      backgroundColor: zone.score > 70 ? "#dc2626" : "#d97706",
+                    }}
+                  />
                 </div>
-                <span className="text-[10px] text-gray-400">{zone.score}</span>
+                <span className="text-xs font-mono font-semibold text-slate-700">{zone.score}</span>
               </div>
             </div>
           ))}
@@ -177,4 +199,3 @@ export default function TrafficPage() {
     </div>
   );
 }
-

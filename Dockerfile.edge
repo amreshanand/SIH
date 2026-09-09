@@ -1,0 +1,33 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
+    gcc g++ zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Base edge deps (no ML) first for faster layer caching.
+COPY edge/requirements.txt ./edge/requirements.txt
+RUN pip install --no-cache-dir -r edge/requirements.txt
+
+# Real-inference ML deps (torch + ultralytics). Heavy but required for the
+# production pipeline. Optional heavy OCR (paddleocr) is commented by default;
+# uncomment in requirements-ml.txt and set OCR_ENABLED=true to enable.
+COPY edge/requirements-ml.txt ./edge/requirements-ml.txt
+RUN pip install --no-cache-dir -r edge/requirements-ml.txt
+
+COPY edge/ ./edge/
+COPY models/ ./models/
+COPY data/ ./data/
+
+COPY --chmod=0755 edge/docker-entrypoint.sh /app/edge/docker-entrypoint.sh
+
+RUN useradd --create-home edgeuser \
+    && chown -R edgeuser:edgeuser /app
+USER edgeuser
+
+EXPOSE 8001
+
+# Entrypoint runs the edge pipeline (real inference).
+CMD ["/app/edge/docker-entrypoint.sh"]
