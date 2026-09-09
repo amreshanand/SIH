@@ -47,6 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     import asyncio
     async def _init_database():
         try:
+            import backend.app.models  # noqa: F401 - Register all models into Base.metadata
             from backend.app.database.session import engine, Base, async_session_factory
             from backend.app.seed.demo_data import seed_demo_data
             async with engine.begin() as conn:

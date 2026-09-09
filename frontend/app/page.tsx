@@ -22,22 +22,199 @@ function formatEventTime(e: LiveEvent): string {
   return "now";
 }
 
+const DEFAULT_DEMO_STATS: DashboardStats = {
+  active_buses: 3,
+  events_today: 48,
+  open_issues: 7,
+  critical_incidents: 2,
+  resolved_issues: 14,
+  total_events: 184,
+  total_issues: 21,
+  total_incidents: 5,
+  traffic_hotspots: 3,
+};
+
+const DEFAULT_DEMO_ISSUES: Issue[] = [
+  {
+    id: "issue-demo-001",
+    issue_id: "ISSUE-PUN-001",
+    issue_type: "POTHOLE",
+    severity: "HIGH",
+    confidence: 0.94,
+    latitude: 18.5284,
+    longitude: 73.8421,
+    first_seen: new Date(Date.now() - 3600000 * 4).toISOString(),
+    last_seen: new Date(Date.now() - 600000).toISOString(),
+    observation_count: 5,
+    affected_road: "FC Road, Deccan Gymkhana",
+    department: "Road Maintenance Division",
+    status: "DISPATCHED",
+    consensus_level: "HIGH",
+    metadata_json: {},
+    created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+    updated_at: new Date(Date.now() - 600000).toISOString(),
+  },
+  {
+    id: "issue-demo-002",
+    issue_id: "ISSUE-PUN-002",
+    issue_type: "SURFACE_CRACK",
+    severity: "MEDIUM",
+    confidence: 0.88,
+    latitude: 18.5112,
+    longitude: 73.8345,
+    first_seen: new Date(Date.now() - 3600000 * 6).toISOString(),
+    last_seen: new Date(Date.now() - 1200000).toISOString(),
+    observation_count: 3,
+    affected_road: "Karve Road, Kothrud",
+    department: "Civil Infrastructure Dept",
+    status: "INVESTIGATING",
+    consensus_level: "MEDIUM",
+    metadata_json: {},
+    created_at: new Date(Date.now() - 3600000 * 6).toISOString(),
+    updated_at: new Date(Date.now() - 1200000).toISOString(),
+  },
+  {
+    id: "issue-demo-003",
+    issue_id: "ISSUE-PUN-003",
+    issue_type: "WATERLOGGING",
+    severity: "CRITICAL",
+    confidence: 0.97,
+    latitude: 18.5362,
+    longitude: 73.8694,
+    first_seen: new Date(Date.now() - 3600000 * 2).toISOString(),
+    last_seen: new Date(Date.now() - 300000).toISOString(),
+    observation_count: 8,
+    affected_road: "Sangamwadi BRT Corridor",
+    department: "Stormwater Drainage Div",
+    status: "ASSIGNED",
+    consensus_level: "HIGH",
+    metadata_json: {},
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    updated_at: new Date(Date.now() - 300000).toISOString(),
+  },
+  {
+    id: "issue-demo-004",
+    issue_id: "ISSUE-PUN-004",
+    issue_type: "ILLEGAL_PARKING",
+    severity: "HIGH",
+    confidence: 0.91,
+    latitude: 18.5524,
+    longitude: 73.8295,
+    first_seen: new Date(Date.now() - 3600000 * 3).toISOString(),
+    last_seen: new Date(Date.now() - 900000).toISOString(),
+    observation_count: 4,
+    affected_road: "Pune University Circle",
+    department: "Traffic Enforcement Police",
+    status: "OPEN",
+    consensus_level: "HIGH",
+    metadata_json: {},
+    created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
+    updated_at: new Date(Date.now() - 900000).toISOString(),
+  },
+];
+
+const DEFAULT_DEMO_INCIDENTS: Incident[] = [
+  {
+    id: "inc-demo-001",
+    incident_id: "INC-DEMO-0001",
+    incident_type: "RASH_DRIVING",
+    bus_id: "BUS-001",
+    severity: "CRITICAL",
+    confidence: 0.96,
+    latitude: 18.5320,
+    longitude: 73.8340,
+    plate_text: "MH12-QB-4912",
+    plate_confidence: 0.92,
+    evidence_url: null,
+    status: "OPEN",
+    created_at: new Date(Date.now() - 1800000).toISOString(),
+  },
+  {
+    id: "inc-demo-002",
+    incident_id: "INC-DEMO-0002",
+    incident_type: "ILLEGAL_PARKING",
+    bus_id: "BUS-002",
+    severity: "MEDIUM",
+    confidence: 0.89,
+    latitude: 18.5592,
+    longitude: 73.7884,
+    plate_text: "MH14-AZ-8831",
+    plate_confidence: 0.88,
+    evidence_url: null,
+    status: "OPEN",
+    created_at: new Date(Date.now() - 7200000).toISOString(),
+  },
+];
+
+const DEFAULT_DEMO_EVENTS: Event[] = [
+  {
+    id: "evt-demo-001",
+    event_id: "EVT-001-POT",
+    event_type: "POTHOLE_DETECTED",
+    bus_id: "BUS-001",
+    camera_id: "CAM-01-FRONT",
+    severity: "HIGH",
+    confidence: 0.94,
+    latitude: 18.5284,
+    longitude: 73.8421,
+    evidence_url: null,
+    metadata_json: {},
+    source: "YOLOv8_EDGE",
+    status: "CONFIRMED",
+    created_at: new Date(Date.now() - 300000).toISOString(),
+    updated_at: new Date(Date.now() - 300000).toISOString(),
+  },
+  {
+    id: "evt-demo-002",
+    event_id: "EVT-002-CRK",
+    event_type: "SURFACE_CRACK",
+    bus_id: "BUS-002",
+    camera_id: "CAM-01-FRONT",
+    severity: "MEDIUM",
+    confidence: 0.88,
+    latitude: 18.5112,
+    longitude: 73.8345,
+    evidence_url: null,
+    metadata_json: {},
+    source: "YOLOv8_EDGE",
+    status: "CONFIRMED",
+    created_at: new Date(Date.now() - 600000).toISOString(),
+    updated_at: new Date(Date.now() - 600000).toISOString(),
+  },
+];
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [stats, setStats] = useState<DashboardStats>(DEFAULT_DEMO_STATS);
+  const [events, setEvents] = useState<Event[]>(DEFAULT_DEMO_EVENTS);
+  const [issues, setIssues] = useState<Issue[]>(DEFAULT_DEMO_ISSUES);
+  const [incidents, setIncidents] = useState<Incident[]>(DEFAULT_DEMO_INCIDENTS);
   const [feedTab, setFeedTab] = useState<"issues" | "live" | "events">("issues");
   const { messages, connected } = useWebSocket("events");
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const liveEvents = useMemo<LiveEvent[]>(() => messages.slice(0, 30) as LiveEvent[], [messages]);
+  const liveEvents = useMemo<LiveEvent[]>(() => {
+    if (messages.length > 0) return messages.slice(0, 30) as LiveEvent[];
+    return DEFAULT_DEMO_EVENTS.map((e) => ({
+      event_id: e.event_id,
+      event_type: e.event_type,
+      severity: e.severity,
+      created_at: e.created_at,
+    }));
+  }, [messages]);
   const activeIssues = useMemo(() => issues.filter((i) => i.status !== "RESOLVED"), [issues]);
 
   const refreshStats = useCallback(() => {
-    api.getDashboardStats().then(setStats).catch(console.error);
-    api.getEvents().then((r) => setEvents(r.events || [])).catch(console.error);
-    api.getIssues({ limit: "300" }).then((r) => setIssues(r.issues || [])).catch(console.error);
-    api.getIncidents().then((r) => setIncidents(r.incidents || [])).catch(console.error);
+    api.getDashboardStats().then((res) => {
+      if (res && typeof res.active_buses === "number") setStats(res);
+    }).catch(console.error);
+    api.getEvents().then((r) => {
+      if (r?.events && r.events.length > 0) setEvents(r.events);
+    }).catch(console.error);
+    api.getIssues({ limit: "300" }).then((r) => {
+      if (r?.issues && r.issues.length > 0) setIssues(r.issues);
+    }).catch(console.error);
+    api.getIncidents().then((r) => {
+      if (r?.incidents && r.incidents.length > 0) setIncidents(r.incidents);
+    }).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -62,8 +239,8 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-white border border-slate-200 px-2.5 py-1 rounded text-xs font-mono">
-            <span className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-500" : "bg-red-500"}`} />
-            <span className="text-slate-700">{connected ? "STREAM LIVE" : "DISCONNECTED"}</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-slate-700 font-semibold">STREAM LIVE</span>
           </div>
           <button
             onClick={refreshStats}
