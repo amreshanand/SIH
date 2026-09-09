@@ -6,13 +6,14 @@ services:
     dockerfilePath: ./Dockerfile.backend
     plan: free
     region: oregon
+    healthCheckPath: /api/system/health
     envVars:
       - key: PORT
         value: 8000
       - key: PRODUCTION
         value: "false"
       - key: DEBUG
-        value: "true"
+        value: "false"
       - key: SECRET_KEY
         generateValue: true
       - key: EDGE_API_KEY
@@ -31,19 +32,21 @@ services:
     dockerfilePath: ./Dockerfile.frontend
     plan: free
     region: oregon
-    envVars:
-      - key: PORT
-        value: 3000
+    healthCheckPath: /
+    dockerBuildArgs:
       - key: NEXT_PUBLIC_API_URL
         fromService:
           type: web
           name: urbansense-backend
-          property: host
+          property: hostWithScheme
       - key: NEXT_PUBLIC_WS_URL
         fromService:
           type: web
           name: urbansense-backend
-          property: host
+          property: hostWithScheme
+    envVars:
+      - key: PORT
+        value: 3000
 
 databases:
   # 3. PostgreSQL Database
