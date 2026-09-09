@@ -288,4 +288,10 @@ export const api = {
     fetchAPI<import("../types").VerificationPostResult>("/api/verification", { method: "POST", body: JSON.stringify(data) }),
 };
 
-export const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+// Derive the WebSocket base URL from NEXT_PUBLIC_WS_URL.
+// Render (and most clouds) provide https:// URLs, but WebSocket requires wss://.
+// We auto-convert: https:// → wss://, http:// → ws://
+function toWsBase(url: string): string {
+  return url.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
+}
+export const WS_BASE = toWsBase(process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8000");
