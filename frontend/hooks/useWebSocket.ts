@@ -119,9 +119,48 @@ export function useWebSocket(channel: string, onMessage?: (msg: WSMessage) => vo
     attemptRef.current = 0;
     openSocket();
 
+    // Fallback polling: if WebSocket is blocked or taking time to connect,
+    // poll recent events via HTTP so dashboard remains fully functional and live.
+    let pollInterval: number | null = null;
+    let pollActive = false;
+
+    const startPollingFallback = () => {
+      if (pollInterval) return;
+      pollInterval = window.setInterval(async () => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          return;
+        }
+        try {
+          const { api } = await import("../lib/api");
+          const res = await api.getEvents({ limit: "20" });
+          if (res && res.events && res.events.length > 0) {
+            pollActive = true;
+            setMessages((prev) => {
+              const existingIds = new Set(prev.map((m) => (m as { id?: string }).id));
+              const newItems = (res.events as unknown as WSMessage[]).filter(
+                (e) => !existingIds.has((e as { id?: string }).id)
+              );
+              if (newItems.length > 0) {
+                newItems.forEach((item) => onMessageRef.current?.(item));
+                return [...newItems, ...prev].slice(0, 100);
+              }
+              return prev;
+            });
+            setState((curr) => (curr === "live" ? curr : "live"));
+          }
+        } catch {
+          /* ignore polling network errors */
+        }
+      }, 4000);
+    };
+
+    const pollStarter = window.setTimeout(startPollingFallback, 3000);
+
     return () => {
       closedBySelfRef.current = true;
       clearTimers();
+      if (pollStarter) window.clearTimeout(pollStarter);
+      if (pollInterval) window.clearInterval(pollInterval);
       if (socket) {
         try {
           socket.close();
@@ -135,3 +174,4 @@ export function useWebSocket(channel: string, onMessage?: (msg: WSMessage) => vo
 
   return { messages, state, connected: state === "live", attempt };
 }
+

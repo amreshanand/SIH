@@ -43,6 +43,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if not yolo_found:
         log.warning("YOLO vehicle model weights not found at '%s'.", settings.yolo_model_path)
 
+    # Safe asynchronous schema verification and demo data seeding
+    import asyncio
+    async def _init_database():
+        try:
+            from backend.app.database.session import engine, Base, async_session_factory
+            from backend.app.seed.demo_data import seed_demo_data
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with async_session_factory() as db:
+                await seed_demo_data(db)
+            log.info("Database schema verified and demo data populated.")
+        except Exception as exc:
+            log.warning("Database init/seed background notice: %s", str(exc))
+
+    asyncio.create_task(_init_database())
+
     yield
     log.info("backend shutting down")
 
