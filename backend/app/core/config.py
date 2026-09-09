@@ -94,12 +94,6 @@ class Settings(BaseSettings):
     # Notification
     notification_provider: str = "inapp"
 
-    model_config = {
-        "env_file": str(PROJECT_ROOT / ".env"),
-        "env_file_encoding": "utf-8",
-        "extra": "ignore",
-    }
-
     @property
     def project_root(self) -> Path:
         return PROJECT_ROOT
@@ -109,6 +103,25 @@ class Settings(BaseSettings):
         if p.is_absolute():
             return p
         return PROJECT_ROOT / p
+
+    def model_post_init(self, __context) -> None:
+        # Render and other clouds provide postgres:// or postgresql://
+        # asyncpg requires postgresql+asyncpg://
+        url = self.database_url
+        if url.startswith("postgres://"):
+            self.database_url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+            self.database_url_sync = url.replace("postgres://", "postgresql://", 1)
+        elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+            self.database_url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            self.database_url_sync = url
+        elif url.startswith("postgresql+asyncpg://"):
+            self.database_url_sync = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+    model_config = {
+        "env_file": str(PROJECT_ROOT / ".env"),
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 settings = Settings()
