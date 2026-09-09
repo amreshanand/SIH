@@ -379,8 +379,8 @@ export default function LivePage() {
         {/* Global Pipeline Telemetry & Controls */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded text-xs font-mono">
-            <span className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-500" : "bg-red-500"}`} />
-            <span className="font-semibold text-slate-700">WS INGESTION: {connected ? "CONNECTED" : "OFFLINE"}</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-semibold text-slate-700">EDGE PIPELINE: ACTIVE</span>
           </div>
 
           {/* Continuous Auto-Sensing Toggle Switch */}

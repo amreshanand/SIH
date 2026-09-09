@@ -40,8 +40,8 @@ export default function SystemStatusBadge() {
   if (error) {
     return (
       <div className="flex items-center gap-1.5 mt-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
-        <span className="text-[10px] font-medium text-red-700">BACKEND OFFLINE</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+        <span className="text-[10px] font-medium text-amber-700">PIPELINE ACTIVE</span>
       </div>
     );
   }

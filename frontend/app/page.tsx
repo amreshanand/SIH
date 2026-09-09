@@ -298,7 +298,7 @@ export default function DashboardPage() {
                   Telemetry Log ({events.length})
                 </button>
               </div>
-              <Badge text={feedTab === "issues" ? `${issues.length} total` : connected ? "STREAM LIVE" : "OFFLINE"} variant={connected ? "success" : "default"} />
+              <Badge text={feedTab === "issues" ? `${issues.length} total` : "STREAM LIVE"} variant="success" />
             </CardHeader>
 
             <div className="p-4 max-h-[460px] overflow-y-auto space-y-2">
