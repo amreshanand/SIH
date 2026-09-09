@@ -7,8 +7,11 @@ RUN npm ci || npm install
 
 COPY frontend/ .
 
-ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_WS_URL
+# NEXT_PUBLIC_* vars are baked into the Next.js bundle at build time.
+# Render passes these as runtime env vars; we promote them to build ARGs here.
+# Defaults point to the canonical Render service URL for this blueprint.
+ARG NEXT_PUBLIC_API_URL=https://urbansense-backend.onrender.com
+ARG NEXT_PUBLIC_WS_URL=https://urbansense-backend.onrender.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 
