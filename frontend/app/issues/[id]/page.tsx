@@ -163,6 +163,28 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
             <span>Confidence: <strong className="text-slate-800 font-semibold">{(issue.confidence * 100).toFixed(1)}%</strong></span>
             <span>Transit Passes: <strong className="text-slate-800 font-semibold">{issue.observation_count}</strong></span>
           </div>
+          {issue.chunk_id && (
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100 flex-wrap text-xs">
+              <span className="text-slate-500 font-semibold">Assigned 500m Chunk:</span>
+              <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-800 font-mono font-bold flex items-center gap-1.5 shadow-xs">
+                <span>📍</span>
+                <span>{issue.chunk_id}</span>
+                {issue.chunk_chainage && <span className="text-blue-600 font-normal">({issue.chunk_chainage})</span>}
+              </span>
+              {issue.chunk_name && (
+                <span className="text-slate-700 font-medium">
+                  {issue.chunk_name}
+                </span>
+              )}
+              <Link
+                href={`/map?chunk=${issue.chunk_id}`}
+                className="ml-auto text-blue-600 hover:text-blue-800 font-semibold hover:underline flex items-center gap-1"
+              >
+                <span>View Chunk on GIS Map</span>
+                <span>→</span>
+              </Link>
+            </div>
+          )}
           <div className="pt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded font-medium">
             Standard Remediation Action: {defectInfo.action}
           </div>
@@ -175,6 +197,14 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
           <CardHeader><span className="text-xs font-semibold uppercase tracking-wider text-slate-700">Metadata</span></CardHeader>
           <div className="p-4 space-y-2.5 text-xs">
             <div className="flex justify-between border-b border-slate-100 pb-1.5"><span className="text-slate-500">Defect Code</span><span className="font-mono text-slate-800">{issue.issue_type}</span></div>
+            {issue.chunk_id && (
+              <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                <span className="text-slate-500">500m Road Chunk</span>
+                <Link href={`/issues?chunk=${issue.chunk_id}`} className="font-mono text-blue-600 hover:text-blue-800 font-bold hover:underline">
+                  {issue.chunk_id}
+                </Link>
+              </div>
+            )}
             <div className="flex justify-between border-b border-slate-100 pb-1.5"><span className="text-slate-500">Confidence</span><span className="font-mono text-slate-800">{(issue.confidence * 100).toFixed(1)}%</span></div>
             <div className="flex justify-between border-b border-slate-100 pb-1.5"><span className="text-slate-500">Department</span><span className="text-slate-800">{issue.department || "Unassigned"}</span></div>
             <div className="flex justify-between border-b border-slate-100 pb-1.5"><span className="text-slate-500">Observations</span><span className="font-mono text-slate-800">{issue.observation_count}</span></div>

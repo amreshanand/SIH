@@ -60,7 +60,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     asyncio.create_task(_init_database())
 
+    # Start continuous event streaming when demo mode is active
+    if settings.demo_mode:
+        from backend.app.services.continuous_sensing import continuous_sensing_service
+        continuous_sensing_service.start(interval_seconds=5.0)
+
     yield
+
+    if settings.demo_mode:
+        try:
+            from backend.app.services.continuous_sensing import continuous_sensing_service
+            continuous_sensing_service.stop()
+        except Exception:
+            pass
+
     log.info("backend shutting down")
 
 

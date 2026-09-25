@@ -26,6 +26,7 @@ class Detection:
     bbox: tuple[int, int, int, int]
     track_id: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    source_model: str = "mock"
 
     @property
     def center(self) -> tuple[int, int]:

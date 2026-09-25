@@ -157,6 +157,13 @@ async def create_or_merge_issue(
             if getattr(event, "ward", None):
                 existing_meta["ward"] = event.ward
                 issue.ward = event.ward
+            if "chunk_id" not in existing_meta:
+                from backend.app.services.road_chunking_service import road_chunk_service
+                c_meta = road_chunk_service.assign_chunk(issue.latitude, issue.longitude)
+                existing_meta["chunk_id"] = c_meta["chunk_id"]
+                existing_meta["chunk_name"] = c_meta["chunk_name"]
+                existing_meta["chunk_chainage"] = c_meta["chainage"]
+                existing_meta["corridor_name"] = c_meta["corridor_name"]
             issue.metadata_json = existing_meta
 
             link = IssueEvent(issue_id=issue.id, event_id=event.id)
@@ -205,6 +212,9 @@ async def create_or_merge_issue(
     # Attach the real evidence path captured by the edge device.
     evidence_urls = [event.evidence_url] if event.evidence_url else []
 
+    from backend.app.services.road_chunking_service import road_chunk_service
+    chunk_meta = road_chunk_service.assign_chunk(event.latitude, event.longitude)
+
     new_issue = Issue(
         issue_id=issue_id,
         issue_type=event.event_type,
@@ -221,13 +231,18 @@ async def create_or_merge_issue(
         fused_confidence_score=fused_score,
         road_mask_overlap_ratio=event.road_overlap_ratio,
         track_age_frames=event.track_age_frames,
-        ward=getattr(event, "ward", None),
+        affected_road=chunk_meta.get("chunk_name"),
+        ward=getattr(event, "ward", None) or chunk_meta.get("ward"),
         metadata_json={
             "evidence_urls": evidence_urls,
             "track_id": track_id,
             "bbox": bbox,
             "source_model": source_model,
-            "ward": getattr(event, "ward", None),
+            "ward": getattr(event, "ward", None) or chunk_meta.get("ward"),
+            "chunk_id": chunk_meta.get("chunk_id"),
+            "chunk_name": chunk_meta.get("chunk_name"),
+            "chunk_chainage": chunk_meta.get("chainage"),
+            "corridor_name": chunk_meta.get("corridor_name"),
         },
     )
     db.add(new_issue)

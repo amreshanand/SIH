@@ -73,29 +73,29 @@ export default function AuditLogsPage() {
   return (
     <div className="p-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-100">Audit Logs</h1>
-        <p className="text-sm text-gray-500">Immutable trail of every state transition and authority action</p>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Audit Logs</h1>
+        <p className="text-xs text-slate-500 mt-0.5">Immutable trail of every state transition, authority decision, and defect life cycle event</p>
       </div>
 
       <Card className="p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Action</div>
+            <div className="text-[10px] uppercase font-bold tracking-wider text-slate-600 mb-1 font-mono">Action Filter</div>
             <input
               value={action}
               onChange={(e) => setAction(e.target.value.toUpperCase())}
               placeholder="e.g. ISSUE_CLAIM"
-              className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 w-52"
+              className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white w-52 transition-colors"
             />
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Entity</div>
+            <div className="text-[10px] uppercase font-bold tracking-wider text-slate-600 mb-1 font-mono">Entity Type</div>
             <select
               value={entityType}
               onChange={(e) => setEntityType(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200"
+              className="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
             >
-              <option value="">all</option>
+              <option value="">All Entities</option>
               {entityTypes.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -105,61 +105,61 @@ export default function AuditLogsPage() {
           </div>
           <button
             onClick={applyFilters}
-            className="px-4 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-sm text-white font-medium"
+            className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs text-white font-bold transition-colors cursor-pointer shadow-xs"
           >
-            Apply
+            Apply Filters
           </button>
-          <span className="ml-auto text-xs text-gray-500">
-            {total} entries · showing {logs.length}
+          <span className="ml-auto text-xs font-medium text-slate-500">
+            <strong className="text-slate-800">{total}</strong> entries recorded · showing {logs.length}
           </span>
         </div>
       </Card>
 
       {error && (
-        <Card className="p-4">
-          <span className="text-sm text-red-400">{error}</span>
+        <Card className="p-4 bg-rose-50 border-rose-200">
+          <span className="text-xs font-semibold text-rose-700">{error}</span>
         </Card>
       )}
 
       <Card>
         <CardHeader>
-          <span className="text-sm font-semibold text-gray-200">Audit trail</span>
-          <Badge text={`${total} total`} variant="info" />
+          <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">Immutable Audit Trail</span>
+          <Badge text={`${total} TOTAL ENTRIES`} variant="default" />
         </CardHeader>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="text-[10px] uppercase tracking-widest text-gray-500 border-b border-gray-800">
-                <th className="px-4 py-2">Time</th>
-                <th className="px-4 py-2">Actor</th>
-                <th className="px-4 py-2">Action</th>
-                <th className="px-4 py-2">Entity</th>
-                <th className="px-4 py-2">Entity ID</th>
-                <th className="px-4 py-2">Old → New</th>
+              <tr className="text-[10px] uppercase font-bold tracking-wider text-slate-500 border-b border-slate-200 bg-slate-50/70 font-mono">
+                <th className="px-4 py-2.5">Time</th>
+                <th className="px-4 py-2.5">Actor</th>
+                <th className="px-4 py-2.5">Action</th>
+                <th className="px-4 py-2.5">Entity</th>
+                <th className="px-4 py-2.5">Entity ID</th>
+                <th className="px-4 py-2.5">Old → New State</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100 text-xs">
               {logs.map((l) => (
-                <tr key={l.id} className="border-b border-gray-800/60 text-sm hover:bg-gray-800/20">
-                  <td className="px-4 py-2 text-xs text-gray-400 whitespace-nowrap">
+                <tr key={l.id} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="px-4 py-2.5 text-slate-500 font-mono text-[11px] whitespace-nowrap">
                     {l.created_at ? new Date(l.created_at).toLocaleString() : "—"}
                   </td>
-                  <td className="px-4 py-2 text-xs text-gray-300">{l.username ?? l.user_id?.slice(0, 8) ?? "system"}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5 font-semibold text-slate-800">{l.username ?? l.user_id?.slice(0, 8) ?? "system"}</td>
+                  <td className="px-4 py-2.5">
                     <Badge text={l.action} variant={actionVariant(l.action)} />
                   </td>
-                  <td className="px-4 py-2 text-xs text-gray-400">{l.entity_type}</td>
-                  <td className="px-4 py-2 text-xs text-gray-400 font-mono">{l.entity_id}</td>
-                  <td className="px-4 py-2 text-xs">
-                    <span className="text-gray-500">{jsonBrief(l.old_value)}</span>
-                    <span className="text-gray-700"> → </span>
-                    <span className="text-cyan-300">{jsonBrief(l.new_value)}</span>
+                  <td className="px-4 py-2.5 font-medium text-slate-700">{l.entity_type}</td>
+                  <td className="px-4 py-2.5 text-slate-600 font-mono text-[11px]">{l.entity_id}</td>
+                  <td className="px-4 py-2.5 font-mono text-[11px]">
+                    <span className="text-slate-500">{jsonBrief(l.old_value)}</span>
+                    <span className="text-slate-400 font-bold"> → </span>
+                    <span className="text-blue-700 font-semibold">{jsonBrief(l.new_value)}</span>
                   </td>
                 </tr>
               ))}
               {logs.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-xs text-slate-500 font-mono">
                     No audit entries match the filters.
                   </td>
                 </tr>
@@ -168,13 +168,13 @@ export default function AuditLogsPage() {
           </table>
         </div>
         {logs.length < total && (
-          <div className="p-4 border-t border-gray-800 flex justify-center">
+          <div className="p-4 border-t border-slate-200 flex justify-center bg-slate-50/50">
             <button
               onClick={more}
               disabled={loading}
-              className="px-4 py-1.5 rounded bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-sm text-gray-200"
+              className="px-4 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 text-xs font-semibold text-slate-800 transition-colors cursor-pointer shadow-xs"
             >
-              {loading ? "Loading…" : "Load more"}
+              {loading ? "Loading…" : "Load more entries"}
             </button>
           </div>
         )}

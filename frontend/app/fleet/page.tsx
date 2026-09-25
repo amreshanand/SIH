@@ -95,7 +95,6 @@ export default function FleetPage() {
           [d.bus_id!]: updated,
         };
       });
-
     }
   });
 
@@ -159,191 +158,231 @@ export default function FleetPage() {
   const totalCams = Object.values(locations).reduce((sum, l) => sum + (l.camera_count || 0), 0);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl">
-      <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Fleet Telemetry & Sensing Units</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Real-time mobile transit edge sensors, corridors, and live GPS telemetry</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={loadData}
-            disabled={loading}
-            className="text-xs px-3 py-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-medium transition-colors"
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
-          <button
-            onClick={() => setShowModal(true)}
-            className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-none transition-colors"
-          >
-            + Register New Bus
-          </button>
-        </div>
-      </div>
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Top Banner / Header */}
+      <Card className="p-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                Transit Fleet &amp; Edge Sensing Units
+              </h1>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Pune PMPML mobile transit edge sensors &bull; Real-time GPS telemetry &bull; Multi-camera streaming units
+            </p>
+          </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Total Fleet" value={buses.length} color="blue" />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="text-xs px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <span className={loading ? "animate-spin" : ""}>↻</span>
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+            <button
+              onClick={() => setShowModal(true)}
+              className="text-xs px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+            >
+              <span>+</span>
+              <span>Register New Bus</span>
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* KPI Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <KpiCard label="Total Fleet Units" value={buses.length} color="blue" />
         <KpiCard label="Active Sensing Units" value={activeCount} color="green" />
-        <KpiCard label="Configured Cameras" value={totalCams || buses.length * 2} color="blue" />
-        <KpiCard label="Assigned Corridors" value={routes.length} color="amber" />
+        <KpiCard label="Optical Video Feeds" value={totalCams || buses.length * 2} color="cyan" />
+        <KpiCard label="Monitored Corridors" value={routes.length} color="amber" />
       </div>
 
-      {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded">{error}</div>}
+      {error && (
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+          {error}
+        </div>
+      )}
 
+      {/* Bus Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {buses.map((bus) => {
           const loc = locations[bus.id];
           const route = bus.route_id ? routeMap[bus.route_id] : null;
           const isPinging = pingingBusId === bus.id;
+          const isOnline = bus.status === "ACTIVE";
 
           return (
-            <Card key={bus.id} className="hover:border-slate-300 transition-colors">
-              <CardHeader className="flex items-center justify-between pb-2">
-                <div className="flex items-center gap-2">
+            <Card
+              key={bus.id}
+              className="overflow-hidden hover:shadow-md transition-all group"
+            >
+              <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between bg-slate-50/80">
+                <div className="flex items-center gap-2.5">
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      bus.status === "ACTIVE" ? "bg-emerald-600" : "bg-slate-400"
+                      isOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
                     }`}
                   />
-                  <span className="text-xs font-bold text-slate-900 font-mono">{bus.bus_number}</span>
+                  <span className="text-xs font-bold text-slate-900 font-mono tracking-wider">{bus.bus_number}</span>
                 </div>
-                <Badge text={bus.status} variant={bus.status === "ACTIVE" ? "success" : "default"} />
-              </CardHeader>
+                <Badge text={bus.status} variant={isOnline ? "success" : "default"} />
+              </div>
 
-              <div className="p-4 space-y-3">
+              <div className="p-4 space-y-3.5">
                 {/* Route Information */}
                 <div>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold block">Corridor</span>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold block font-mono">
+                    Transit Corridor
+                  </span>
                   {route ? (
-                    <div className="mt-0.5">
-                      <div className="text-xs font-semibold text-blue-700">{route.route_name}</div>
-                      <div className="text-[11px] text-slate-600 truncate">
-                        {route.start_stop} → {route.end_stop}
+                    <div className="mt-1">
+                      <div className="text-xs font-bold text-blue-700">{route.route_name}</div>
+                      <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {route.start_stop} &rarr; {route.end_stop}
                       </div>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-400 italic">Unassigned Corridor</span>
+                    <span className="text-xs text-slate-400 italic mt-0.5 block">Unassigned Corridor</span>
                   )}
                 </div>
 
                 {/* Telemetry Metrics */}
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
-                  <div className="bg-slate-50 p-2 rounded border border-slate-200">
-                    <span className="text-[9px] text-slate-500 uppercase font-medium block">Speed</span>
-                    <span className="text-xs font-mono font-semibold text-slate-900">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                    <span className="text-[9px] text-slate-500 uppercase font-mono font-bold block">Speed</span>
+                    <span className="text-xs font-mono font-bold text-emerald-700 mt-0.5 block">
                       {loc?.speed != null ? `${loc.speed.toFixed(1)} km/h` : "Parked"}
                     </span>
                   </div>
-                  <div className="bg-slate-50 p-2 rounded border border-slate-200">
-                    <span className="text-[9px] text-slate-500 uppercase font-medium block">Heading</span>
-                    <span className="text-xs font-mono font-semibold text-slate-900">
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                    <span className="text-[9px] text-slate-500 uppercase font-mono font-bold block">Heading</span>
+                    <span className="text-xs font-mono font-bold text-blue-700 mt-0.5 block">
                       {loc?.heading != null ? `${Math.round(loc.heading)}°` : "N/A"}
                     </span>
                   </div>
                 </div>
 
                 {/* Location & Sensor Info */}
-                <div className="space-y-1 text-[11px] text-slate-600">
+                <div className="space-y-1.5 text-[11px] font-mono text-slate-600">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Position:</span>
-                    <span className="font-mono text-slate-800">
+                    <span className="text-slate-400 font-sans">Position:</span>
+                    <span className="text-slate-800 font-semibold">
                       {loc?.latitude != null && loc?.longitude != null
                         ? `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`
                         : "No GPS fix"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Sensors / Cameras:</span>
-                    <span className="text-slate-800">
+                    <span className="text-slate-400 font-sans">Sensors / Cameras:</span>
+                    <span className="text-slate-800 font-semibold">
                       {loc?.camera_count ?? 2} Optical Feeds
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Source:</span>
-                    <span className="text-[10px] font-mono text-blue-700 font-medium">
-                      {loc?.source || "DISPATCH_EST"}
+                    <span className="text-slate-400 font-sans">Source:</span>
+                    <span className="text-[10px] text-blue-700 font-bold">
+                      {loc?.source || "SENSING_ENGINE"}
                     </span>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                   <span className="text-[10px] text-slate-400 font-mono">
                     {loc?.last_updated ? new Date(loc.last_updated).toLocaleTimeString() : "Awaiting fix"}
                   </span>
                   <button
                     onClick={() => handleSendTelemetryPing(bus)}
                     disabled={isPinging}
-                    className="text-[11px] px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-medium transition-colors disabled:opacity-50"
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1 shadow-xs"
                   >
-                    {isPinging ? "Broadcasting..." : "Ingest Telemetry"}
+                    <span>{isPinging ? "📡" : "⚡"}</span>
+                    <span>{isPinging ? "Broadcasting..." : "Ingest Telemetry"}</span>
                   </button>
                 </div>
               </div>
             </Card>
           );
         })}
+
         {buses.length === 0 && !loading && (
-          <Card className="col-span-3">
-            <div className="p-8 text-center text-slate-500 text-xs">No buses registered in fleet</div>
-          </Card>
+          <div className="col-span-3 p-12 text-center text-slate-500 text-xs rounded-xl bg-white border border-slate-200">
+            No buses registered in fleet. Click &ldquo;+ Register New Bus&rdquo; to add a unit.
+          </div>
         )}
       </div>
 
       {/* Register Bus Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md bg-white border border-slate-200 rounded shadow-xl overflow-hidden">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Register Mobile Sensing Unit</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-600" />
+                <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-mono">
+                  Register Mobile Sensing Unit
+                </h2>
+              </div>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-500 hover:text-slate-700 text-xs font-medium"
+                className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer font-bold"
               >
-                Cancel
+                ✕
               </button>
             </div>
+
             {modalError && (
-              <div className="m-4 p-2.5 rounded bg-red-50 border border-red-200 text-xs text-red-700">
+              <div className="m-4 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
                 {modalError}
               </div>
             )}
-            <form onSubmit={handleRegisterBus} className="p-4 space-y-3">
+
+            <form onSubmit={handleRegisterBus} className="p-4 space-y-3.5">
               <div>
-                <label className="block text-[11px] font-medium text-slate-700 mb-1">Bus Registration Number</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Bus Registration Number
+                </label>
                 <input
                   type="text"
                   value={newBusNumber}
                   onChange={(e) => setNewBusNumber(e.target.value)}
                   placeholder="e.g. MH-12-RN-7001"
-                  className="w-full px-3 py-1.5 text-xs rounded bg-white border border-slate-300 focus:border-blue-600 focus:outline-none text-slate-900"
+                  className="w-full px-3 py-2 text-xs rounded-lg bg-slate-50 border border-slate-300 text-slate-900 font-mono placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-700 mb-1">Transit Corridor</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Transit Corridor
+                </label>
                 <select
                   value={newRouteId}
                   onChange={(e) => setNewRouteId(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs rounded bg-white border border-slate-300 focus:border-blue-600 focus:outline-none text-slate-900"
+                  className="w-full px-3 py-2 text-xs rounded-lg bg-slate-50 border border-slate-300 text-slate-900 font-semibold focus:border-blue-600 focus:bg-white focus:outline-none"
                 >
                   <option value="">Unassigned</option>
                   {routes.map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.route_name} ({r.start_stop} → {r.end_stop})
+                      {r.route_name} ({r.start_stop} &rarr; {r.end_stop})
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-700 mb-1">Operational Status</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Operational Status
+                </label>
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs rounded bg-white border border-slate-300 focus:border-blue-600 focus:outline-none text-slate-900"
+                  className="w-full px-3 py-2 text-xs rounded-lg bg-slate-50 border border-slate-300 text-slate-900 font-semibold focus:border-blue-600 focus:bg-white focus:outline-none"
                 >
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="INACTIVE">INACTIVE</option>
@@ -351,18 +390,18 @@ export default function FleetPage() {
                 </select>
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-3 py-1.5 rounded text-xs text-slate-600 hover:text-slate-900 transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={modalLoading}
-                  className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-xs text-white font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs text-white font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {modalLoading ? "Registering..." : "Register Bus"}
                 </button>
@@ -374,4 +413,3 @@ export default function FleetPage() {
     </div>
   );
 }
-

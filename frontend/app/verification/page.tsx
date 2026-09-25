@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, APIError, auth } from "@/lib/api";
+import { api, APIError, auth, type AuthUser } from "@/lib/api";
 import { Card, CardHeader, Badge, Stat } from "@/components/ui/Card";
 import type { Bus, Issue, Verification } from "@/types";
 
@@ -28,11 +28,20 @@ export default function VerificationPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busId, setBusId] = useState<string>("");
   const [result, setResult] = useState<"CLEAR" | "DETECTED">("CLEAR");
-  const [confidence, setConfidence] = useState(0.9);
+  const confidence = 0.95;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [currentUser] = useState(auth.user);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setCurrentUser(auth.user);
+    setMounted(true);
+    const handler = () => setCurrentUser(auth.user);
+    window.addEventListener("auth-changed", handler);
+    return () => window.removeEventListener("auth-changed", handler);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,9 +127,20 @@ export default function VerificationPage() {
   if (error) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-gray-100 mb-4">Multi-Bus Verification</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mb-4">Multi-Bus Verification</h1>
+        <Card className="p-6 bg-rose-50 border-rose-200">
+          <div className="text-xs font-semibold text-rose-700">Unable to reach backend: {error}</div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!mounted) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-4">Multi-Bus Verification</h1>
         <Card className="p-6">
-          <div className="text-red-400">Unable to reach backend: {error}</div>
+          <div className="text-slate-500 font-mono text-sm animate-pulse">Loading verification console...</div>
         </Card>
       </div>
     );
@@ -129,9 +149,9 @@ export default function VerificationPage() {
   if (!currentUser) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-gray-100 mb-4">Multi-Bus Verification</h1>
-        <Card className="p-6">
-          <div className="text-amber-400">Sign in to submit verification passes.</div>
+        <h1 className="text-2xl font-bold text-slate-900 mb-4">Multi-Bus Verification</h1>
+        <Card className="p-6 bg-amber-50 border-amber-200">
+          <div className="text-xs font-semibold text-amber-800">Sign in to submit verification passes.</div>
         </Card>
       </div>
     );
@@ -141,16 +161,16 @@ export default function VerificationPage() {
     <div className="p-8 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-100">Multi-Bus Verification</h1>
-          <p className="text-sm text-gray-500">
-            If a future bus detects the issue again after repair, it is automatically REOPENED.
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Multi-Bus Verification</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Cross-fleet consensus and re-verification. If a future bus detects the defect again after repair, it is automatically REOPENED.
           </p>
         </div>
       </div>
 
       {notice && (
-        <Card className="p-4 border-cyan-500/40">
-          <span className="text-sm text-cyan-300">{notice}</span>
+        <Card className="p-3.5 bg-cyan-50 border-cyan-200">
+          <span className="text-xs font-semibold text-cyan-800">{notice}</span>
         </Card>
       )}
 
@@ -169,25 +189,25 @@ export default function VerificationPage() {
             <Card key={issue.id}>
               <CardHeader>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-gray-200">{issue.issue_id}</span>
+                  <span className="text-xs font-bold font-mono text-slate-900">{issue.issue_id}</span>
                   <Badge text={issue.issue_type.replace(/_/g, " ")} variant={sevVariant[issue.severity] || "default"} />
                   <Badge text={issue.status} variant={statusVariant(issue.status)} />
                 </div>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs font-mono text-slate-500">
                   {issue.latitude.toFixed(4)}, {issue.longitude.toFixed(4)}
                 </span>
               </CardHeader>
               <div className="p-4 space-y-4">
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>observations: {issue.observation_count}</span>
-                  <span>confidence: {(issue.confidence * 100).toFixed(0)}%</span>
+                <div className="flex justify-between text-xs font-medium text-slate-600">
+                  <span>Observations: <strong className="text-slate-900 font-mono">{issue.observation_count}</strong></span>
+                  <span>Confidence: <strong className="text-slate-900 font-mono">{(issue.confidence * 100).toFixed(0)}%</strong></span>
                 </div>
 
                 <div className="flex flex-wrap items-end gap-3">
                   <div>
-                    <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Bus</div>
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-slate-600 mb-1 font-mono">Bus</div>
                     <select
-                      className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200"
+                      className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
                       value={busId}
                       onChange={(e) => setBusId(e.target.value)}
                     >
@@ -200,9 +220,9 @@ export default function VerificationPage() {
                     </select>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Detection</div>
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-slate-600 mb-1 font-mono">Detection Result</div>
                     <select
-                      className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200"
+                      className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
                       value={result}
                       onChange={(e) => setResult(e.target.value as "CLEAR" | "DETECTED")}
                     >
@@ -210,24 +230,10 @@ export default function VerificationPage() {
                       <option value="DETECTED">DETECTED (defect present)</option>
                     </select>
                   </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-1">
-                      Confidence {Math.round(confidence * 100)}%
-                    </div>
-                    <input
-                      type="range"
-                      min={0.5}
-                      max={1}
-                      step={0.05}
-                      value={confidence}
-                      onChange={(e) => setConfidence(Number(e.target.value))}
-                      className="w-28 accent-cyan-500"
-                    />
-                  </div>
                   <button
                     onClick={() => submit(issue)}
                     disabled={busy === issue.id}
-                    className="ml-auto px-4 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-sm text-white font-medium"
+                    className="ml-auto px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-xs text-white font-bold transition-colors cursor-pointer shadow-xs"
                   >
                     {busy === issue.id ? "Sending…" : "Submit pass"}
                   </button>
@@ -235,22 +241,24 @@ export default function VerificationPage() {
 
                 <button
                   onClick={() => toggleHistory(issue.id)}
-                  className="text-xs text-cyan-400 hover:text-cyan-300"
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
                 >
-                  {open ? "hide history" : `show verification history (${history[issue.id]?.length ?? 0})`}
+                  {open ? "▲ Hide history" : `▼ Show verification history (${history[issue.id]?.length ?? 0})`}
                 </button>
 
                 {open && (
-                  <div className="space-y-2 pt-2 border-t border-gray-800">
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
                     {(history[issue.id] ?? []).length === 0 && (
-                      <div className="text-xs text-gray-500">No verification passes recorded yet.</div>
+                      <div className="text-xs text-slate-500 font-mono">No verification passes recorded yet.</div>
                     )}
                     {(history[issue.id] ?? []).map((v) => (
-                      <div key={v.id} className="flex justify-between text-xs bg-gray-800/40 rounded px-3 py-2">
-                        <span className="text-gray-300">
-                          {v.detection_result === "CLEAR" ? "CLEAR ✓" : "DETECTED ✗"} ·{" "}
-                          <span className="text-gray-500">{v.bus_id.slice(0, 8)}</span> ·{" "}
-                          {new Date(v.timestamp).toLocaleTimeString()}
+                      <div key={v.id} className="flex justify-between items-center text-xs bg-slate-50 border border-slate-200/80 rounded-lg px-3 py-2">
+                        <span className="text-slate-800 font-medium">
+                          <strong className={v.detection_result === "CLEAR" ? "text-emerald-700" : "text-amber-700"}>
+                            {v.detection_result === "CLEAR" ? "CLEAR ✓" : "DETECTED ✗"}
+                          </strong>{" "}
+                          · <span className="font-mono text-slate-500">{v.bus_id.slice(0, 8)}</span> ·{" "}
+                          <span className="text-slate-500">{new Date(v.timestamp).toLocaleTimeString()}</span>
                         </span>
                         <Badge text={v.result} variant={v.result === "CLEARED" ? "success" : "warning"} />
                       </div>
@@ -265,7 +273,7 @@ export default function VerificationPage() {
 
       {issues.length === 0 && !error && (
         <Card className="p-8 text-center">
-          <div className="text-sm text-gray-500">No issues pending multi-bus verification.</div>
+          <div className="text-xs text-slate-500 font-mono">No issues pending multi-bus verification.</div>
         </Card>
       )}
     </div>

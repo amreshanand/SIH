@@ -486,3 +486,23 @@ async def run_demo(db: AsyncSession = Depends(get_db), _admin: User = Depends(re
         "issue_created": created_issue_id,
         "flow": "DETECT → REPORT → ASSIGN → ACT → VERIFY → RESOLVE → REOPEN",
     }
+
+
+@router.post("/continuous/start")
+async def start_continuous_sensing(interval: float = 5.0) -> dict:
+    from backend.app.services.continuous_sensing import continuous_sensing_service
+    continuous_sensing_service.start(interval_seconds=interval)
+    return {"status": "started", **continuous_sensing_service.status()}
+
+
+@router.post("/continuous/stop")
+async def stop_continuous_sensing() -> dict:
+    from backend.app.services.continuous_sensing import continuous_sensing_service
+    continuous_sensing_service.stop()
+    return {"status": "stopped", **continuous_sensing_service.status()}
+
+
+@router.get("/continuous/status")
+async def get_continuous_sensing_status() -> dict:
+    from backend.app.services.continuous_sensing import continuous_sensing_service
+    return continuous_sensing_service.status()

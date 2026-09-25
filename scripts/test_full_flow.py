@@ -25,7 +25,8 @@ async def test_backend_routes():
     print("\n1. Backend route verification")
     from backend.app import create_app
     app = create_app()
-    route_paths = sorted([r.path for r in app.routes if hasattr(r, 'path') and r.path.startswith('/api/')])
+    openapi_paths = list(app.openapi().get("paths", {}).keys())
+    route_paths = sorted([p for p in openapi_paths if p.startswith("/api/")])
     log_result("Backend imports", True, f"{len(route_paths)} API routes")
     assert len(route_paths) >= 35, f"Expected 35+ routes, got {len(route_paths)}"
     return route_paths
@@ -58,13 +59,22 @@ async def test_demo_seed_reset_run():
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with session_factory() as db:
-        await db.execute(text(
-            "TRUNCATE verification_records, notifications, audit_logs, issue_events, "
-            "issue_assignments, evidence, incidents, vehicle_tracks, traffic_records, "
-            "events, issues, cameras, buses, routes, gps_points CASCADE"
-        ))
-        await db.execute(text("DELETE FROM users WHERE username != 'admin'"))
-        await db.commit()
+        for attempt in range(5):
+            try:
+                await db.execute(text(
+                    "TRUNCATE verification_records, notifications, audit_logs, issue_events, "
+                    "issue_assignments, evidence, incidents, vehicle_tracks, traffic_records, "
+                    "events, issues, cameras, buses, routes, gps_points CASCADE"
+                ))
+                await db.execute(text("DELETE FROM users WHERE username != 'admin'"))
+                await db.commit()
+                break
+            except Exception:
+                await db.rollback()
+                if attempt == 4:
+                    raise
+                import asyncio
+                await asyncio.sleep(0.4)
 
         from backend.app.seed.demo_data import seed_demo_data
         await seed_demo_data(db)
@@ -869,7 +879,10 @@ async def test_sensing_session_lifecycle():
             log_result("Session close", ok, f"duration={c['duration_seconds']:.1f}s events={c['event_count']}")
 
             active = await active_sessions(db)
-            dup = any(x.session_id == sid for x in active["sessions"])
+            dup = any(
+                (x.get("session_id") if isinstance(x, dict) else getattr(x, "session_id", None)) == sid
+                for x in active["sessions"]
+            )
             log_result("Closed session not active", not dup, f"active_total={active['total']}")
 
             await db.execute(delete(SensingSession).where(SensingSession.session_id == sid))

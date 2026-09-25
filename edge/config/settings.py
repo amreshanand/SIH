@@ -35,12 +35,18 @@ class OCRProviderType(str, Enum):
     OFF = "off"
 
 
+class ModelMode(str, Enum):
+    REAL = "real"
+    MOCK = "mock"
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
     project_name: str = "UrbanSense AI"
     debug: bool = True
+    model_mode: ModelMode = ModelMode.MOCK
 
     edge_host: str = "0.0.0.0"
     edge_port: int = 8001

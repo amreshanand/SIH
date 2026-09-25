@@ -30,6 +30,9 @@ class IssueResponse(BaseModel):
     track_age_frames: Optional[int] = None
     metadata_json: Optional[dict[str, Any]] = None
     evidence_urls: Optional[list[str]] = []
+    chunk_id: Optional[str] = None
+    chunk_name: Optional[str] = None
+    chunk_chainage: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

@@ -65,6 +65,7 @@ class EventEngine:
         "edge_break": "HIGH",
         "rutting": "MEDIUM",
         "surface_wear": "LOW",
+        "road_crack": "LOW",
         "patch_failure": "MEDIUM",
         "utility_cover_damage": "CRITICAL",
     }
@@ -160,7 +161,7 @@ class EventEngine:
                 "observations": len(batch),
                 "bbox": detection.bbox,
                 "track_id": detection.track_id,
-                "source_model": detection.source_model,
+                "source_model": getattr(detection, "source_model", "mock"),
                 "gps_source": gps.source if gps else "UNKNOWN",
                 "area_ratio": round(max_area_ratio, 4),
             },

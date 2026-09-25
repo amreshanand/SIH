@@ -115,6 +115,18 @@ async def test_bus_telemetry_ingestion(client: AsyncClient, admin_token):
     buses = (await client.get("/api/buses", headers=auth_header(admin_token))).json()
     bus = next(b for b in buses if b["bus_number"] == "BUS-TEL-01")
 
+    # Unauthenticated request should be rejected (401)
+    unauth = await client.post(
+        f"/api/buses/{bus['id']}/telemetry",
+        json={
+            "latitude": 18.525,
+            "longitude": 73.865,
+            "speed": 42.5,
+            "heading": 180.0,
+        },
+    )
+    assert unauth.status_code == 401
+
     res = await client.post(
         f"/api/buses/{bus['id']}/telemetry",
         json={
@@ -123,6 +135,7 @@ async def test_bus_telemetry_ingestion(client: AsyncClient, admin_token):
             "speed": 42.5,
             "heading": 180.0,
         },
+        headers=auth_header(admin_token),
     )
     assert res.status_code == 201
     body = res.json()

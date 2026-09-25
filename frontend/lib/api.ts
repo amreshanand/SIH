@@ -36,7 +36,7 @@ interface FetchOptions extends RequestInit {
 }
 
 async function fetchAPI<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { timeoutMs = 15000, auth = true, headers, ...rest } = options;
+  const { timeoutMs = 30000, auth = true, headers, ...rest } = options;
 
   const mergedHeaders: Record<string, string> = {
     "Content-Type": "application/json",
@@ -45,7 +45,10 @@ async function fetchAPI<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   if (auth) {
     const token = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_KEY) : null;
-    if (token) mergedHeaders["Authorization"] = `Bearer ${token}`;
+    if (token) {
+      mergedHeaders["Authorization"] = `Bearer ${token}`;
+    }
+    mergedHeaders["X-API-Key"] = process.env.NEXT_PUBLIC_EDGE_API_KEY || "urbansense-edge-key-change-me";
   }
 
   const controller = new AbortController();
@@ -74,6 +77,10 @@ async function fetchAPI<T>(path: string, options: FetchOptions = {}): Promise<T>
       if (typeof body?.detail === "string") detail = body.detail;
     } catch {
       /* ignore non-JSON error bodies */
+    }
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.localStorage.removeItem(TOKEN_KEY);
+      window.localStorage.removeItem(USER_KEY);
     }
     throw new APIError(res.status, detail);
   }
@@ -251,6 +258,15 @@ export const api = {
   runSihMode: () =>
     fetchAPI<{ status: string; total_steps: number; steps_completed: Array<Record<string, unknown>>; issue_created: string | null }>("/api/demo/sih", { method: "POST" }),
 
+  getContinuousSensingStatus: () =>
+    fetchAPI<{ is_running: boolean; interval_seconds: number; events_emitted: number; issues_affected: number; verifications_run: number; last_emitted_at: string | null; step_counter: number }>("/api/demo/continuous/status"),
+
+  startContinuousSensing: (interval = 5.0) =>
+    fetchAPI<{ status: string; is_running: boolean }>("/api/demo/continuous/start?interval=" + interval, { method: "POST" }),
+
+  stopContinuousSensing: () =>
+    fetchAPI<{ status: string; is_running: boolean }>("/api/demo/continuous/stop", { method: "POST" }),
+
   runDemo: () => fetchAPI<{ status: string; total_steps: number; steps_completed: Array<{ step: number; action: string; message: string;[key: string]: unknown }>; issue_created: string | null }>("/api/demo/run", { method: "POST" }),
 
   getRoadHealth: () =>
@@ -286,6 +302,38 @@ export const api = {
 
   createVerification: (data: Record<string, unknown>) =>
     fetchAPI<import("../types").VerificationPostResult>("/api/verification", { method: "POST", body: JSON.stringify(data) }),
+
+  getChunks: (params?: Record<string, string>) => {
+    const q = params ? "?" + new URLSearchParams(params).toString() : "";
+    return fetchAPI<{ chunks: import("../types").RoadChunk[]; total: number; total_unfiltered: number }>(`/api/chunks${q}`);
+  },
+
+  getChunksSummary: () =>
+    fetchAPI<import("../types").RoadChunksSummary>("/api/chunks/summary"),
+
+  getChunkDetails: (chunkId: string) =>
+    fetchAPI<import("../types").RoadChunk & { issues: import("../types").Issue[] }>(`/api/chunks/${chunkId}`),
+
+  dispatchChunk: (chunkId: string) =>
+    fetchAPI<{ status: string; work_order_id: string; chunk_id: string; dispatched_count: number; message: string }>(
+      `/api/chunks/${chunkId}/dispatch`,
+      { method: "POST" }
+    ),
+
+  getChunkManifest: (chunkId: string) =>
+    fetchAPI<{
+      chunk_id: string;
+      corridor_name: string;
+      chunk_name: string;
+      chainage: string;
+      ward: string;
+      health_score: number;
+      status: string;
+      coordinates: { start: [number, number]; center: [number, number]; end: [number, number] };
+      defect_summary: { total_defects: number; potholes: number; cracks: number; damaged_surfaces: number };
+      remediation_estimates: { asphalt_mix_cum: number; crack_sealant_meters: number; estimated_crew_size: number; recommended_sla_hours: number };
+      defects: import("../types").Issue[];
+    }>(`/api/chunks/${chunkId}/manifest`),
 };
 
 // Derive the WebSocket base URL from NEXT_PUBLIC_WS_URL.

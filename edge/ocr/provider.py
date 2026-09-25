@@ -30,6 +30,15 @@ class OCRProvider:
         raise NotImplementedError
 
 
+class MockOCRProvider(OCRProvider):
+    """Mock/stub provider that safely returns None without loading heavy models."""
+
+    def detect_plate(
+        self, frame: np.ndarray, bbox: tuple[int, int, int, int]
+    ) -> OCRResult | None:
+        return None
+
+
 class _BaseRealOCR(OCRProvider):
     def _crop(self, frame: np.ndarray, bbox: tuple[int, int, int, int]) -> np.ndarray:
         x1, y1, x2, y2 = bbox

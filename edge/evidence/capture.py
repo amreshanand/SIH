@@ -18,15 +18,13 @@ import numpy as np
 from edge.utils.logger import log
 
 
-def _exif_gps_to_dms(value: float) -> tuple[tuple, tuple, tuple]:
-    """Convert a decimal degree to a (deg, min, sec) rational triplet for EXIF."""
+def _exif_gps_to_dms(value: float) -> tuple[float, float, float]:
+    """Convert a decimal degree to a (deg, min, sec) rational float triplet for EXIF."""
     deg = abs(int(value))
     minutes_float = abs(value - int(value)) * 60
     minutes = int(minutes_float)
     seconds = (minutes_float - minutes) * 60
-    # (numerator, denominator) pairs
-    to_rational = lambda v: ( (int(v * 1000), 1000) if v else (0, 1) )
-    return to_rational(deg), to_rational(minutes), to_rational(seconds)
+    return float(deg), float(minutes), float(seconds)
 
 
 class EvidenceCapture:
@@ -178,23 +176,25 @@ class EvidenceCapture:
 
     @staticmethod
     def _embed_exif_gps(filepath: str, latitude: float, longitude: float) -> None:
-        """Embed GPS EXIF using Pillow (best-effort, never fails the capture)."""
+        """Embed GPS EXIF using Pillow (best-effort, never corrupts the capture)."""
+        import os
+        tmp_fp = filepath + ".tmp.jpg"
         try:
             from PIL import Image
-            from PIL.ExifTags import TAGS
+            from PIL.ExifTags import IFD
 
-            img = Image.open(filepath)
-            exif = img.getexif()
-            gps_ifd = {
-                1: "N" if latitude >= 0 else "S",
-                2: _exif_gps_to_dms(latitude),
-                3: "E" if longitude >= 0 else "W",
-                4: _exif_gps_to_dms(longitude),
-            }
-            gps_tag = next(
-                (k for k, v in TAGS.items() if v == "GPSInfo"), 34853
-            )
-            exif[gps_tag] = gps_ifd
-            img.save(filepath, exif=exif)
+            with Image.open(filepath) as img:
+                exif = img.getexif()
+                gps_ifd = exif.get_ifd(IFD.GPSInfo)
+                gps_ifd[1] = "N" if latitude >= 0 else "S"
+                gps_ifd[2] = _exif_gps_to_dms(latitude)
+                gps_ifd[3] = "E" if longitude >= 0 else "W"
+                gps_ifd[4] = _exif_gps_to_dms(longitude)
+                img.save(tmp_fp, format="JPEG", exif=exif)
+            os.replace(tmp_fp, filepath)
         except Exception:  # noqa: BLE001
-            pass
+            if os.path.exists(tmp_fp):
+                try:
+                    os.remove(tmp_fp)
+                except OSError:
+                    pass

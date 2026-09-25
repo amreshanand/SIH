@@ -18,6 +18,7 @@ from backend.app.api import (
     verification,
     issues,
     sensing,
+    chunks,
 )
 from backend.app.websocket import handlers as ws_handlers
 
@@ -25,6 +26,7 @@ api_router = APIRouter(prefix="/api")
 
 api_router.include_router(events.router)
 api_router.include_router(issues.router)
+api_router.include_router(chunks.router)
 api_router.include_router(incidents.router)
 api_router.include_router(buses.router)
 api_router.include_router(dashboard.router)

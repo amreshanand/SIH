@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
+import TopHeader from "@/components/layout/TopHeader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,6 +17,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "UrbanSense AI — Urban Mobility Intelligence",
   description: "Transforming public transport buses into mobile urban sensing units",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -47,9 +52,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body suppressHydrationWarning className="min-h-full bg-slate-50 text-slate-900 antialiased">
+      <body suppressHydrationWarning className="min-h-full bg-[#f8fafc] text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
         <Sidebar />
-        <main className="ml-56 min-h-screen bg-slate-50 text-slate-900">{children}</main>
+        <div className="ml-60 min-h-screen flex flex-col bg-[#f8fafc]">
+          <TopHeader />
+          <main className="flex-1 p-6 md:p-8 bg-command-grid">{children}</main>
+        </div>
       </body>
 
     </html>

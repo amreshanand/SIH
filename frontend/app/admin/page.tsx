@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, APIError, auth } from "@/lib/api";
+import { api, APIError, auth, type AuthUser } from "@/lib/api";
 import { Card, CardHeader, Badge, Stat } from "@/components/ui/Card";
 import type { AdminUser } from "@/types";
 
@@ -22,8 +22,18 @@ export default function AdminPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentUser] = useState(auth.user);
-  const isAdmin = currentUser?.role === "ADMIN";
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setCurrentUser(auth.user);
+    setMounted(true);
+    const handler = () => setCurrentUser(auth.user);
+    window.addEventListener("auth-changed", handler);
+    return () => window.removeEventListener("auth-changed", handler);
+  }, []);
+
+  const isAdmin = mounted && currentUser?.role === "ADMIN";
 
   const load = useCallback(async () => {
     setError(null);
@@ -76,69 +86,89 @@ export default function AdminPage() {
     }
   };
 
+  if (!mounted) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-slate-900 mb-4">Admin</h1>
+        <Card className="p-6">
+          <div className="text-slate-500 font-mono text-sm animate-pulse">Checking credentials...</div>
+        </Card>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-gray-100 mb-4">Admin</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mb-4">Admin</h1>
         <Card className="p-6">
-          <div className="text-amber-400">Admin access required — your role is {currentUser?.role ?? "none"}.</div>
+          <div className="text-amber-600 font-medium">Admin access required — your role is {currentUser?.role ?? "none"}.</div>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-100">Admin Panel</h1>
-        <p className="text-sm text-gray-500">User management and role-based access control</p>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Console</h1>
+        <p className="text-xs text-slate-500 mt-0.5">Municipal operator permissions, access roles, and account provisioning</p>
       </div>
 
       {notice && (
-        <Card className="p-4 border-cyan-500/40">
-          <span className="text-sm text-cyan-300">{notice}</span>
+        <Card className="p-3 bg-cyan-50 border-cyan-200">
+          <span className="text-xs font-semibold text-cyan-800">{notice}</span>
         </Card>
       )}
       {error && (
-        <Card className="p-4">
-          <span className="text-sm text-red-400">{error}</span>
+        <Card className="p-3 bg-rose-50 border-rose-200">
+          <span className="text-xs font-semibold text-rose-700">{error}</span>
         </Card>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <span className="text-sm font-semibold text-gray-200">Create user</span>
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">Create user</span>
             <Badge text="NEW" variant="info" />
           </CardHeader>
           <div className="p-4 space-y-3">
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
-              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200"
-            />
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password (min 8 chars)"
-              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200"
-            />
-            <select
-              value={newRole}
-              onChange={(e) => setNewRole(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200"
-            >
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Username</label>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. ward_supervisor"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Password (min 8 chars)</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Assigned Role</label>
+              <select
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-colors"
+              >
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               onClick={create}
-              className="w-full px-4 py-2 rounded bg-cyan-600 hover:bg-cyan-500 text-sm text-white font-medium"
+              className="w-full px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs text-white font-bold transition-colors cursor-pointer shadow-xs"
             >
               Create user
             </button>
@@ -147,40 +177,42 @@ export default function AdminPage() {
 
         <Card className="lg:col-span-2">
           <CardHeader>
-            <span className="text-sm font-semibold text-gray-200">Users</span>
-            <Badge text={`${total} total`} variant="default" />
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">Registered Operator Accounts</span>
+            <Badge text={`${total} TOTAL`} variant="default" />
           </CardHeader>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-[10px] uppercase tracking-widest text-gray-500 border-b border-gray-800">
-                  <th className="px-4 py-2">Username</th>
-                  <th className="px-4 py-2">Role</th>
-                  <th className="px-4 py-2">Department</th>
-                  <th className="px-4 py-2">Created</th>
-                  <th className="px-4 py-2">Change role</th>
+                <tr className="text-[10px] uppercase font-bold tracking-wider text-slate-500 border-b border-slate-200 bg-slate-50/70 font-mono">
+                  <th className="px-4 py-2.5">Username</th>
+                  <th className="px-4 py-2.5">Role</th>
+                  <th className="px-4 py-2.5">Department</th>
+                  <th className="px-4 py-2.5">Created</th>
+                  <th className="px-4 py-2.5">Change role</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 text-xs">
                 {users.map((u) => (
-                  <tr key={u.id} className="border-b border-gray-800/60 text-sm hover:bg-gray-800/20">
-                    <td className="px-4 py-2 text-gray-200">
+                  <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-4 py-2.5 font-bold font-mono text-slate-900">
                       {u.username}
-                      {u.id === currentUser?.id && <span className="text-gray-600 ml-1">(you)</span>}
+                      {u.id === currentUser?.id && (
+                        <span className="text-blue-600 ml-1.5 text-[11px] font-sans font-semibold">(you)</span>
+                      )}
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2.5">
                       <Badge text={u.role} variant={roleVariant(u.role)} />
                     </td>
-                    <td className="px-4 py-2 text-xs text-gray-400">{u.department ?? "—"}</td>
-                    <td className="px-4 py-2 text-xs text-gray-500">
+                    <td className="px-4 py-2.5 text-slate-700 font-medium">{u.department ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-500 font-mono text-[11px]">
                       {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2.5">
                       <select
                         value={u.role}
                         disabled={busyId === u.id}
                         onChange={(e) => changeRole(u, e.target.value)}
-                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 disabled:opacity-50"
+                        className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold text-slate-800 disabled:opacity-50 focus:outline-none focus:border-blue-600 cursor-pointer"
                       >
                         {ROLES.map((r) => (
                           <option key={r} value={r}>
@@ -195,15 +227,21 @@ export default function AdminPage() {
             </table>
           </div>
           {users.length === 0 && (
-            <div className="p-8 text-center text-sm text-gray-500">No users.</div>
+            <div className="p-8 text-center text-xs text-slate-500 font-mono">No registered users found.</div>
           )}
         </Card>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <Stat label="ADMIN" value={users.filter((u) => u.role === "ADMIN").length} tone="red" />
-        <Stat label="AUTHORITY" value={users.filter((u) => u.role === "AUTHORITY").length} tone="cyan" />
-        <Stat label="VIEWER" value={users.filter((u) => u.role === "VIEWER").length} tone="default" />
+        <Card className="p-3.5 border-l-4 border-l-rose-500">
+          <Stat label="ADMINISTRATORS" value={users.filter((u) => u.role === "ADMIN").length} tone="red" />
+        </Card>
+        <Card className="p-3.5 border-l-4 border-l-blue-500">
+          <Stat label="AUTHORITIES" value={users.filter((u) => u.role === "AUTHORITY").length} tone="blue" />
+        </Card>
+        <Card className="p-3.5 border-l-4 border-l-slate-400">
+          <Stat label="VIEWERS" value={users.filter((u) => u.role === "VIEWER").length} tone="default" />
+        </Card>
       </div>
     </div>
   );

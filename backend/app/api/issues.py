@@ -46,6 +46,7 @@ async def list_issues(
     issue_type: Optional[str] = None,
     severity: Optional[str] = None,
     department: Optional[str] = None,
+    chunk_id: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(150, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
@@ -78,6 +79,25 @@ async def list_issues(
     q = q.order_by(Issue.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
     issues = list(result.scalars().all())
+
+    from backend.app.services.road_chunking_service import road_chunk_service
+    for issue in issues:
+        meta = issue.metadata_json or {}
+        c_id = meta.get("chunk_id")
+        c_name = meta.get("chunk_name")
+        c_chain = meta.get("chunk_chainage")
+        if not c_id:
+            assigned = road_chunk_service.assign_chunk(issue.latitude, issue.longitude)
+            c_id = assigned["chunk_id"]
+            c_name = assigned["chunk_name"]
+            c_chain = assigned["chainage"]
+        issue.chunk_id = c_id
+        issue.chunk_name = c_name
+        issue.chunk_chainage = c_chain
+
+    if chunk_id:
+        issues = [i for i in issues if (i.chunk_id or "").upper() == chunk_id.upper()]
+        total = len(issues)
 
     return {"issues": issues, "total": total}
 
@@ -117,6 +137,20 @@ async def get_issue(issue_id: str, db: AsyncSession = Depends(get_db)) -> Issue:
                 evidence_urls.append(u)
 
     issue.evidence_urls = evidence_urls
+
+    from backend.app.services.road_chunking_service import road_chunk_service
+    meta = issue.metadata_json or {}
+    c_id = meta.get("chunk_id")
+    c_name = meta.get("chunk_name")
+    c_chain = meta.get("chunk_chainage")
+    if not c_id:
+        assigned = road_chunk_service.assign_chunk(issue.latitude, issue.longitude)
+        c_id = assigned["chunk_id"]
+        c_name = assigned["chunk_name"]
+        c_chain = assigned["chainage"]
+    issue.chunk_id = c_id
+    issue.chunk_name = c_name
+    issue.chunk_chainage = c_chain
 
     return issue
 

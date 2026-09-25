@@ -89,7 +89,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-slate-100">
       <div className="w-full max-w-2xl space-y-6">
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-2">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-white p-1.5 shadow-md border border-slate-200 flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="UrbanSense Logo" className="w-full h-full object-contain" />
+          </div>
           <div className="text-[11px] font-semibold text-blue-700 uppercase tracking-wider">
             Municipal Mobility Operations Gateway
           </div>

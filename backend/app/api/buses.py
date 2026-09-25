@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from datetime import datetime, timezone
 
-from backend.app.api.deps import require_admin
+from backend.app.api.deps import require_admin, edge_or_user
 from backend.app.database.session import get_db
 from backend.app.models import Bus, Camera, Event, GPSPoint, Route, User
 from backend.app.schemas.bus import (
@@ -153,6 +153,7 @@ async def ingest_telemetry(
     bus_id: str,
     payload: TelemetryCreate,
     db: AsyncSession = Depends(get_db),
+    _actor: str = Depends(edge_or_user),
 ) -> dict:
     try:
         bid = uuid.UUID(bus_id)

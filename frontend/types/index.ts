@@ -59,8 +59,64 @@ export interface Issue {
   fused_confidence_score?: number;
   metadata_json: Record<string, unknown> | null;
   evidence_urls?: string[];
+  chunk_id?: string;
+  chunk_name?: string;
+  chunk_chainage?: string;
+  ward?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface RoadChunk {
+  chunk_id: string;
+  corridor_id: string;
+  corridor_name: string;
+  chunk_name: string;
+  chainage: string;
+  chainage_start_m: number;
+  chainage_end_m: number;
+  length_m: number;
+  start_lat: number;
+  start_lon: number;
+  end_lat: number;
+  end_lon: number;
+  center_lat: number;
+  center_lon: number;
+  ward: string;
+  polyline: [number, number][];
+  health_score: number;
+  status: "EXCELLENT" | "GOOD" | "FAIR" | "POOR";
+  active_issues_count: number;
+  severity_breakdown: {
+    CRITICAL: number;
+    HIGH: number;
+    MEDIUM: number;
+    LOW: number;
+  };
+  issue_types: Record<string, number>;
+  top_severity?: string;
+  issues_preview?: Array<{
+    issue_id: string;
+    type: string;
+    severity: string;
+    status: string;
+    lat: number;
+    lon: number;
+  }>;
+}
+
+export interface RoadChunksSummary {
+  total_chunks: number;
+  total_network_km: number;
+  average_pci_health: number;
+  total_active_defects: number;
+  distribution: {
+    excellent: number;
+    good: number;
+    fair: number;
+    poor: number;
+  };
+  critical_hotspots: RoadChunk[];
 }
 
 export interface Incident {

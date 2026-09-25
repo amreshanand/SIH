@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, APIError, auth } from "@/lib/api";
+import { api, APIError, auth, type AuthUser } from "@/lib/api";
 import { Card, CardHeader, Badge, Stat } from "@/components/ui/Card";
 import type { SystemHealth } from "@/types";
 
@@ -19,8 +19,18 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [currentUser] = useState(auth.user);
-  const isAdmin = currentUser?.role === "ADMIN";
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setCurrentUser(auth.user);
+    setMounted(true);
+    const handler = () => setCurrentUser(auth.user);
+    window.addEventListener("auth-changed", handler);
+    return () => window.removeEventListener("auth-changed", handler);
+  }, []);
+
+  const isAdmin = mounted && currentUser?.role === "ADMIN";
 
   const load = useCallback(() => {
     setMsg(null);
@@ -62,29 +72,29 @@ export default function SettingsPage() {
   const capList = Object.entries(caps);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-100">Settings</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System Settings</h1>
+        <p className="text-xs text-slate-500 mt-0.5">
           Runtime configuration, AI modes, and demo lifecycle controls
         </p>
       </div>
 
       {msg && (
-        <Card className="p-4 border-cyan-500/40">
-          <span className="text-sm text-cyan-300">{msg}</span>
+        <Card className="p-3 bg-cyan-50 border-cyan-200">
+          <span className="text-xs font-semibold text-cyan-800">{msg}</span>
         </Card>
       )}
       {err && (
-        <Card className="p-4">
-          <span className="text-sm text-red-400">{err}</span>
+        <Card className="p-3 bg-rose-50 border-rose-200">
+          <span className="text-xs font-semibold text-rose-700">{err}</span>
         </Card>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <span className="text-sm font-semibold text-gray-200">Configuration</span>
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">System Configuration</span>
             <Badge text={health?.pipeline ?? "…"} variant={health?.pipeline === "LIVE" ? "online" : "low"} />
           </CardHeader>
           <div className="p-4">
@@ -98,14 +108,14 @@ export default function SettingsPage() {
               <Badge text={health?.spatial_engine ?? "—"} variant="info" />
             </div>
             {capList.length > 0 && (
-              <div className="mt-4 border-t border-gray-800 pt-3">
-                <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-2">Capabilities</div>
+              <div className="mt-4 border-t border-slate-200 pt-3">
+                <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2 font-mono">Capabilities</div>
                 {capList.map(([name, cap]) => {
                   const c = cap as { mode: string; detail: string };
                   return (
                     <div key={name} className="flex justify-between py-1 text-xs">
-                      <span className="text-gray-300 capitalize">{name.replace(/_/g, " ")}</span>
-                      <span className="text-gray-500">
+                      <span className="text-slate-800 font-semibold capitalize">{name.replace(/_/g, " ")}</span>
+                      <span className="text-slate-500 font-mono">
                         {c.mode} · {c.detail}
                       </span>
                     </div>
@@ -118,8 +128,11 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <span className="text-sm font-semibold text-gray-200">Demo Data &amp; Lifecycle</span>
-            <Badge text={isAdmin ? "ADMIN" : "READ-ONLY"} variant={isAdmin ? "success" : "default"} />
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">Demo Data &amp; Lifecycle</span>
+            <Badge
+              text={!mounted ? "..." : isAdmin ? "ADMIN" : "READ-ONLY"}
+              variant={!mounted ? "default" : isAdmin ? "success" : "default"}
+            />
           </CardHeader>
           <div className="p-4">
             {demo && (
@@ -135,22 +148,22 @@ export default function SettingsPage() {
                 [
                   ["Reset database", () => api.resetDemo()],
                   ["Seed demo data", () => api.seedDemo()],
-                  ["Run SIH demo lifecycle", () => api.runSihMode()],
+                  ["Run automated workflow validation", () => api.runSihMode()],
                 ] as Array<[string, () => Promise<unknown>]>
               ).map(([label, fn]) => (
-                <div key={label} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-300">{label}</span>
+                <div key={label} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-xs font-semibold text-slate-800">{label}</span>
                   <button
                     onClick={() => runAction(label, fn)}
                     disabled={busy === label}
-                    className="px-4 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-sm text-white font-medium"
+                    className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-xs text-white font-semibold transition-colors cursor-pointer shadow-xs"
                   >
                     {busy === label ? "Running…" : "Run"}
                   </button>
                 </div>
               ))}
-              {!isAdmin && (
-                <p className="text-xs text-amber-400 pt-2">
+              {mounted && !isAdmin && (
+                <p className="text-xs text-amber-700 pt-2 font-medium">
                   ADMIN role required for demo controls — current role: {currentUser?.role ?? "none"}
                 </p>
               )}
