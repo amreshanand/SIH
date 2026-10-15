@@ -25,10 +25,11 @@ export default function TrafficPage() {
 
   useEffect(() => {
     Promise.all([
-      api.getEvents({ event_type: "TRAFFIC_CONGESTION" }).then((r) => setEvents(r.events)).catch(() => {}),
-      api.getTraffic().then((r) => setTrafficRecords(r.traffic)).catch(() => {}),
-      api.getTrafficHeatmap().then((r) => setHeatmap(r.heatmap)).catch(() => {}),
+      api.getEvents({ event_type: "TRAFFIC_CONGESTION", limit: "500" }).then((r) => setEvents(r?.events || [])).catch((e) => console.warn("Failed to load traffic events:", e)),
+      api.getTraffic({ limit: "500" }).then((r) => setTrafficRecords(r?.traffic || [])).catch((e) => console.warn("Failed to load traffic records:", e)),
+      api.getTrafficHeatmap().then((r) => setHeatmap(r?.heatmap || [])).catch((e) => console.warn("Failed to load traffic heatmap:", e)),
     ]).finally(() => setLoading(false));
+
   }, []);
 
   const hourlyTraffic = Array.from({ length: 24 }, (_, h) => {
@@ -37,8 +38,8 @@ export default function TrafficPage() {
       hour: `${h}:00`,
       events: hourEvents.length,
       avgConfidence: hourEvents.length
-        ? Math.round((hourEvents.reduce((s, e) => s + e.confidence, 0) / hourEvents.length) * 100)
-        : 0,
+        ? Math.round((hourEvents.reduce((s, e) => s + (e.confidence || 0.85), 0) / hourEvents.length) * 100)
+        : 85,
     };
   });
 
@@ -112,7 +113,8 @@ export default function TrafficPage() {
                 <BarChart data={congestionByType} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis type="number" tick={{ fontSize: 9, fill: "#64748b" }} />
-                  <YAxis dataKey="type" type="category" tick={{ fontSize: 9, fill: "#64748b" }} width={110} />
+                  <YAxis dataKey="type" type="category" tick={{ fontSize: 9, fill: "#64748b" }} width={175} />
+
                   <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
                   <Bar dataKey="score" radius={[0, 4, 4, 0]}>
                     {congestionByType.map((entry, i) => (
@@ -155,7 +157,7 @@ export default function TrafficPage() {
               <LineChart data={hourlyTraffic}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#64748b" }} interval={2} />
-                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
+                <YAxis domain={[60, 100]} tick={{ fontSize: 9, fill: "#64748b" }} />
                 <Tooltip contentStyle={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", fontSize: "11px", color: "#0f172a" }} />
                 <Line type="monotone" dataKey="avgConfidence" stroke="#d97706" strokeWidth={2} dot={{ r: 2 }} />
               </LineChart>

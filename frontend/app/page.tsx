@@ -184,20 +184,21 @@ export default function Dashboard() {
   const refreshStats = useCallback(() => {
     api.getDashboardStats().then((res) => {
       if (res && typeof res.active_buses === "number") setStats(res);
-    }).catch(console.error);
+    }).catch((e) => console.warn("Failed to refresh stats:", e));
 
     api.getEvents({ limit: "25" }).then((r) => {
       if (r?.events && r.events.length > 0) setEvents(r.events);
-    }).catch(console.error);
+    }).catch((e) => console.warn("Failed to refresh events:", e));
 
     api.getIssues({ limit: "150" }).then((r) => {
       if (r?.issues && r.issues.length > 0) setIssues(r.issues);
-    }).catch(console.error);
+    }).catch((e) => console.warn("Failed to refresh issues:", e));
 
     api.getIncidents().then((r) => {
       if (r?.incidents && r.incidents.length > 0) setIncidents(r.incidents);
-    }).catch(console.error);
+    }).catch((e) => console.warn("Failed to refresh incidents:", e));
   }, []);
+
 
   useEffect(() => {
     refreshStats();

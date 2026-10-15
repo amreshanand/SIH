@@ -67,9 +67,8 @@ DEPARTMENT_ROUTING = {
     "TRAFFIC_CONGESTION": "TRAFFIC_MANAGEMENT",
 }
 
-# These event types are promoted to Incidents (command-center alerts) instead of
-# infrastructure Issues. They carry the offending-vehicle plate + GPS + timestamp.
-INCIDENT_EVENT_TYPES = {"RASH_DRIVING", "HIT_AND_RUN", "COLLISION"}
+INCIDENT_EVENT_TYPES = {"RASH_DRIVING", "HIT_AND_RUN", "COLLISION", "PEDESTRIAN_RISK"}
+
 
 
 def haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

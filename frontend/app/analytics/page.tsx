@@ -51,16 +51,17 @@ export default function AnalyticsPage() {
   const [chunksSummary, setChunksSummary] = useState<RoadChunksSummary | null>(null);
 
   useEffect(() => {
-    api.getEvents({ limit: "200" }).then((r) => setEvents(r?.events || [])).catch(console.error);
-    api.getIssues({ limit: "200" }).then((r) => setIssues(r?.issues || [])).catch(console.error);
-    api.getRoadHealth().then((r) => setRoadHealth(r?.roads || [])).catch(console.error);
-    api.getRoutePerformance().then(setRoutePerf).catch(console.error);
-    api.getOdMatrix(7).then(setOdMatrix).catch(console.error);
-    api.getRouteDelays().then((r) => setRouteDelays(r?.routes || [])).catch(console.error);
-    api.getInfrastructure().then(setInfra).catch(console.error);
-    api.getChunks().then((r) => setChunks(r.chunks)).catch(console.error);
-    api.getChunksSummary().then(setChunksSummary).catch(console.error);
+    api.getEvents({ limit: "200" }).then((r) => setEvents(r?.events || [])).catch((e) => console.warn("Failed to load events:", e));
+    api.getIssues({ limit: "200" }).then((r) => setIssues(r?.issues || [])).catch((e) => console.warn("Failed to load issues:", e));
+    api.getRoadHealth().then((r) => setRoadHealth(r?.roads || [])).catch((e) => console.warn("Failed to load road health:", e));
+    api.getRoutePerformance().then(setRoutePerf).catch((e) => console.warn("Failed to load route performance:", e));
+    api.getOdMatrix(7).then(setOdMatrix).catch((e) => console.warn("Failed to load OD matrix:", e));
+    api.getRouteDelays().then((r) => setRouteDelays(r?.routes || [])).catch((e) => console.warn("Failed to load route delays:", e));
+    api.getInfrastructure().then(setInfra).catch((e) => console.warn("Failed to load infrastructure:", e));
+    api.getChunks().then((r) => setChunks(r?.chunks || [])).catch((e) => console.warn("Failed to load chunks:", e));
+    api.getChunksSummary().then(setChunksSummary).catch((e) => console.warn("Failed to load chunks summary:", e));
   }, []);
+
 
   const eventTypeDist = events.reduce((acc: Record<string, number>, e) => {
     acc[e.event_type] = (acc[e.event_type] || 0) + 1;

@@ -28,8 +28,9 @@ export default function AuthoritiesPage() {
     api
       .getIssues({ limit: "500" })
       .then((r) => setAllIssues((r?.issues || []) as Issue[]))
-      .catch(console.error)
+      .catch((e) => console.warn("Failed to fetch issues:", e))
       .finally(() => setLoading(false));
+
   }, []);
 
   useEffect(() => {

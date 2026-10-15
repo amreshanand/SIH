@@ -14,8 +14,9 @@ export default function IncidentsPage() {
     api
       .getIncidents()
       .then((r) => setIncidents(r?.incidents || []))
-      .catch(console.error)
+      .catch((e) => console.warn("Failed to load incidents:", e))
       .finally(() => setLoading(false));
+
   }, []);
 
   return (
