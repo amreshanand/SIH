@@ -282,7 +282,7 @@ export default function DemoPage() {
         <Card>
           <CardHeader>
             <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">WebSocket Ingestion</span>
-            <Badge text={connected ? "CONNECTED" : "ACTIVE"} variant={connected ? "success" : "default"} />
+            <Badge text={connected ? "CONNECTED" : "DISCONNECTED"} variant={connected ? "success" : "warning"} />
           </CardHeader>
           <div className="p-4 space-y-2">
             {messagesKeyed.length === 0 && (

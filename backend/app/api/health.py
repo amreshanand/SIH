@@ -64,10 +64,10 @@ async def system_models() -> dict:
         "road_damage_model": {
             "name": "Urban Road Damage (RDD2022)",
             "path": settings.road_damage_model_path,
-            "status": "ready" if road_damage_exists else "fallback_active",
+            "status": "ready" if road_damage_exists else "missing",
             "available": road_damage_exists,
             "size_bytes": os.path.getsize(settings.road_damage_model_path) if road_damage_exists else 0,
-            "note": "When missing, platform transparently operates in heuristic / synthetic edge fallback mode.",
+            "note": "Road damage AI inference is available." if road_damage_exists else "Model weights not found. Real AI road-damage inference is UNAVAILABLE.",
         },
     }
 
@@ -95,6 +95,22 @@ async def system_health(db: AsyncSession = Depends(get_db)) -> dict:
     overall = "ok" if db_ok else "degraded"
 
     from backend.app.services.capabilities import capability_status, pipeline_mode
+    from backend.app.services.operational_state import compute_operational_state
+
+    vehicle_model_available = os.path.exists(settings.yolo_model_path)
+    road_damage_model_available = os.path.exists(settings.road_damage_model_path)
+    any_model = vehicle_model_available or road_damage_model_available
+    gps_simulated = str(settings.gps_mode).lower() == "simulated"
+
+    # Compute truthful operational_state via pure function
+    operational_state = compute_operational_state(
+        db_ok=db_ok,
+        demo_mode=settings.demo_mode,
+        vehicle_model_available=vehicle_model_available,
+        road_damage_model_available=road_damage_model_available,
+        gps_simulated=gps_simulated,
+        postgis_ok=postgis_ok,
+    )
 
     return {
         "status": overall,
@@ -105,10 +121,15 @@ async def system_health(db: AsyncSession = Depends(get_db)) -> dict:
         },
         "postgis": {"status": "installed" if postgis_ok else "not_installed"},
         "models": {
-            "vehicle_model": os.path.exists(settings.yolo_model_path),
-            "road_damage_model": os.path.exists(settings.road_damage_model_path),
+            "vehicle_model": vehicle_model_available,
+            "road_damage_model": road_damage_model_available,
         },
-        "ai_mode": "LIVE",
+        "operational_state": operational_state,
+        "ai_state": "LIVE" if any_model else "UNAVAILABLE",
+        "ai_mode": operational_state,  # backward compat
+        "vehicle_model_available": vehicle_model_available,
+        "road_damage_model_available": road_damage_model_available,
+        "postgis_available": postgis_ok,
         "gps_mode": settings.gps_mode,
         "demo_mode": settings.demo_mode,
         "debug": settings.debug,
