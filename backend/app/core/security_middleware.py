@@ -52,6 +52,9 @@ class AuthRateLimitMiddleware(BaseHTTPMiddleware):
         q.append(now)
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         path = request.url.path
         action = None
         if path.endswith("/auth/login"):

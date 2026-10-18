@@ -39,20 +39,46 @@ export default function SystemStatusBadge() {
 
   if (error) {
     return (
-      <div className="flex items-center gap-1.5 mt-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-        <span className="text-[10px] font-medium text-amber-700">PIPELINE ACTIVE</span>
+      <div
+        className="flex items-center gap-1.5 mt-1"
+        title="Backend server is unreachable. Verify that backend is running on http://localhost:8000"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+        <span className="text-[10px] font-semibold text-red-600 tracking-wide">BACKEND OFFLINE</span>
       </div>
     );
   }
 
-  const live = health ? health.pipeline === "LIVE" : false;
-  const label = live ? "EDGE PIPELINE LIVE" : "PIPELINE ACTIVE";
+  const opState = health?.operational_state || health?.ai_mode || "ONLINE";
+  const isMissing = opState === "MODEL_MISSING";
+  const isReal = opState === "REAL" || health?.pipeline === "LIVE";
+  const isDemo = opState === "DEMO" || opState === "SIMULATED";
+
+  let dotColor = "bg-emerald-600";
+  let textColor = "text-emerald-700";
+  let label = "PIPELINE LIVE";
+
+  if (isMissing) {
+    dotColor = "bg-amber-500";
+    textColor = "text-amber-700";
+    label = "AI: MODEL MISSING";
+  } else if (isDemo) {
+    dotColor = "bg-blue-500";
+    textColor = "text-blue-700";
+    label = `MODE: ${opState}`;
+  } else if (!isReal) {
+    dotColor = "bg-amber-600";
+    textColor = "text-amber-700";
+    label = "PIPELINE ACTIVE";
+  }
 
   return (
-    <div className="flex items-center gap-1.5 mt-1">
-      <span className={`w-1.5 h-1.5 rounded-full ${live ? "bg-emerald-600" : "bg-amber-600"}`} />
-      <span className={`text-[10px] font-medium ${live ? "text-emerald-700" : "text-amber-700"}`}>{label}</span>
+    <div
+      className="flex items-center gap-1.5 mt-1"
+      title={`Operational State: ${opState} | Database: ${health?.database?.status || "online"}`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+      <span className={`text-[10px] font-medium ${textColor}`}>{label}</span>
     </div>
   );
 }

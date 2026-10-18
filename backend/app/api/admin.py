@@ -85,7 +85,7 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ) -> dict:
-    from passlib.hash import bcrypt
+    from backend.app.core.security import bcrypt_compat as bcrypt
 
     existing = await db.execute(select(User).where(User.username == payload.username))
     if existing.scalar_one_or_none():

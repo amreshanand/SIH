@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     event_rate_limit_per_minute: int = 120
 
     # CORS
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://11.6.3.45:3000"
 
     # Production guard
     production: bool = False

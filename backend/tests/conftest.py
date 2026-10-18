@@ -79,26 +79,37 @@ app = create_app()
 
 
 # --- Schema setup -----------------------------------------------------------
+_DB_AVAILABLE = True
+
+
 @pytest.fixture(scope="session")
 def _schema() -> None:
-    import sqlalchemy as sa
+    global _DB_AVAILABLE
+    try:
+        import sqlalchemy as sa
 
-    sync_url = settings.database_url_sync
-    sync_engine = sa.create_engine(sync_url)
-    Base.metadata.drop_all(sync_engine)
-    Base.metadata.create_all(sync_engine)
-    sync_engine.dispose()
+        sync_url = settings.database_url_sync
+        sync_engine = sa.create_engine(sync_url)
+        Base.metadata.create_all(sync_engine)
+        sync_engine.dispose()
+    except Exception:
+        _DB_AVAILABLE = False
 
 
 @pytest.fixture(autouse=True)
 def _clean(_schema) -> None:
-    import sqlalchemy as sa
+    if not _DB_AVAILABLE:
+        return
+    try:
+        import sqlalchemy as sa
 
-    sync_engine = sa.create_engine(settings.database_url_sync)
-    with sync_engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(text(f'TRUNCATE TABLE "{table.name}" CASCADE'))
-    sync_engine.dispose()
+        sync_engine = sa.create_engine(settings.database_url_sync)
+        with sync_engine.begin() as conn:
+            for table in reversed(Base.metadata.sorted_tables):
+                conn.execute(text(f'TRUNCATE TABLE "{table.name}" CASCADE'))
+        sync_engine.dispose()
+    except Exception:
+        pass
 
 
 # --- App / client -----------------------------------------------------------

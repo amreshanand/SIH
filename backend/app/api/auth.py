@@ -24,7 +24,7 @@ class LoginResponse(BaseModel):
 
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> LoginResponse:
-    from passlib.hash import bcrypt
+    from backend.app.core.security import bcrypt_compat as bcrypt
 
     result = await db.execute(select(User).where(User.username == payload.username))
     user = result.scalar_one_or_none()
@@ -52,7 +52,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
 
 @router.post("/register", status_code=201)
 async def register(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> dict:
-    from passlib.hash import bcrypt
+    from backend.app.core.security import bcrypt_compat as bcrypt
 
     existing = await db.execute(select(User).where(User.username == payload.username))
     if existing.scalar_one_or_none():

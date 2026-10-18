@@ -313,7 +313,7 @@ async def seed_demo_data(db: AsyncSession, force: bool = False) -> dict:
         if existing_user.scalar_one_or_none():
             counts["users"] += 1
             continue
-        from passlib.hash import bcrypt
+        from backend.app.core.security import bcrypt_compat as bcrypt
         user = User(username=username, password_hash=bcrypt.hash(password), role=role, department=dept)
         db.add(user)
         counts["users"] += 1

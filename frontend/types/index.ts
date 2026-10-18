@@ -254,6 +254,8 @@ export interface SystemHealth {
   timestamp: number;
   database: { status: string; latency_ms: number };
   postgis?: { status: string };
+  models?: { vehicle_model: boolean; road_damage_model: boolean };
+  operational_state?: string;
   ai_mode: string;
   gps_mode: string;
   demo_mode: boolean;

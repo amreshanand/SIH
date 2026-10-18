@@ -25,23 +25,30 @@ Phone Camera → Edge AI Laptop → YOLO + ByteTrack + OCR → Event Engine
                                          RESOLVED
 ```
 
-## Quick Start
+## Quick Start (Local Development)
 
+### Terminal 1 — Backend
 ```bash
-# 1. Setup
-chmod +x scripts/setup.sh
-./scripts/setup.sh
+source .venv/bin/activate && cd backend && python run.py
+```
 
-# 2. Start backend
-cd backend && python run.py
-
-# 3. Start frontend
+### Terminal 2 — Frontend
+```bash
 cd frontend && npm run dev
+```
 
-# 4. Start edge AI
-python edge/main.py
+### Verification
+```bash
+curl http://localhost:8000/api/system/health
+```
 
-# 5. Seed demo data
+### Optional: Edge AI Sensing (Terminal 3)
+```bash
+source .venv/bin/activate && python edge/main.py
+```
+
+### Optional: Seed Demo Data
+```bash
 curl -X POST http://localhost:8000/api/demo/seed
 ```
 
