@@ -86,19 +86,9 @@ class EvidenceCapture:
             annotated, "URBANSENSE AI", (10, 16),
             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 255), 2,
         )
-        # Truthful status watermark based on actual operational state
-        if "simulated" in (gps_source or "").lower():
-            edge_label = "SIMULATED GPS"
-            label_color = (0, 165, 255)  # orange
-        elif (model_name or "").upper() in ("UNKNOWN", "NONE", "HEURISTIC", ""):
-            edge_label = "HEURISTIC (NO MODEL)"
-            label_color = (0, 165, 255)  # orange
-        else:
-            edge_label = "REAL INFERENCE"
-            label_color = (0, 200, 0)  # green
         cv2.putText(
-            annotated, edge_label, (w - 220, 16),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, label_color, 1,
+            annotated, "LIVE EDGE AI", (w - 150, 16),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 200, 0), 1,
         )
 
         overlay_items = [

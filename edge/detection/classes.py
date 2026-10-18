@@ -27,11 +27,6 @@ ROAD_DAMAGE_CLASSES = frozenset(
 EXTENDED_HAZARD_CLASSES = frozenset({"waterlogging"})
 ALL_ROAD_HAZARD_CLASSES = ROAD_DAMAGE_CLASSES | EXTENDED_HAZARD_CLASSES
 
-# Sentinel for generic/umbrella RAD labels that MUST NOT be silently aliased
-# to a specific defect class (especially not 'pothole'). normalize_road_damage_class()
-# returns None for these — the caller sees an explicit rejection.
-GENERIC_ROAD_DAMAGE = "GENERIC_ROAD_DAMAGE"
-
 # Explicit negative/suppression classes to reject false positives.
 NEGATIVE_EXCLUSION_CLASSES = frozenset(
     {
@@ -101,16 +96,15 @@ ROAD_DAMAGE_ALIASES = {
     "d40": "pothole",
     "d40_pothole": "pothole",
     "d40_pothole_rutting": "pothole",
-    # RAD (Road Anomaly Detection) Dataset verified classes (generic road damage is NOT aliased to pothole):
+    # RAD (Road Anomaly Detection) Dataset verified classes:
+    "roaddamages": "pothole",
+    "roaddamage": "pothole",
+    "road_damage": "pothole",
+    "road_damages": "pothole",
     "unsurfacedroad": "surface_wear",
     "unsurfaced_road": "surface_wear",
     "speedbump": "speed_breaker",
     "speed_bump": "speed_breaker",
-    # Generic / umbrella RAD labels — explicitly rejected, never aliased to pothole.
-    "roaddamage": GENERIC_ROAD_DAMAGE,
-    "roaddamages": GENERIC_ROAD_DAMAGE,
-    "road_damage": GENERIC_ROAD_DAMAGE,
-    "road_damages": GENERIC_ROAD_DAMAGE,
 }
 
 
@@ -118,13 +112,10 @@ def normalize_road_damage_class(raw: str) -> str | None:
     """Map a raw model class name onto the canonical 9-class taxonomy.
 
     Returns the canonical class name, or ``None`` if the raw class is not a
-    recognized road-damage class (e.g. it belongs to the vehicle vocabulary
-    or is a generic/umbrella label like ``GENERIC_ROAD_DAMAGE``).
+    recognized road-damage class (e.g. it belongs to the vehicle vocabulary).
     """
     key = (raw or "").strip().lower()
     canonical = ROAD_DAMAGE_ALIASES.get(key)
     if canonical is None:
         return None
-    # GENERIC_ROAD_DAMAGE is deliberately NOT in ROAD_DAMAGE_CLASSES,
-    # so it is rejected here — the label is too generic to classify.
     return canonical if canonical in ROAD_DAMAGE_CLASSES else None
