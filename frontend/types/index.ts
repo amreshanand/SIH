@@ -254,7 +254,12 @@ export interface SystemHealth {
   timestamp: number;
   database: { status: string; latency_ms: number };
   postgis?: { status: string };
+  operational_state: "REAL" | "SIMULATED" | "DEMO" | "OFFLINE" | "MODEL_MISSING" | "DEGRADED";
+  ai_state: "LIVE" | "UNAVAILABLE";
   ai_mode: string;
+  vehicle_model_available: boolean;
+  road_damage_model_available: boolean;
+  postgis_available: boolean;
   gps_mode: string;
   demo_mode: boolean;
   debug: boolean;
